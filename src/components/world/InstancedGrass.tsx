@@ -61,9 +61,9 @@ export function InstancedGrass({ quality, playerRef, distanceToPaths }: Instance
 		return {
 			uTime: { value: 0 },
 			uPlayerPosition: { value: new Vector3(0, 0, 20) },
-			uRootColor: { value: new Color("#295229") },
-			uMidColor: { value: new Color("#5c9e42") },
-			uTipColor: { value: new Color("#b8e966") },
+			uRootColor: { value: new Color("#354f35") },
+			uMidColor: { value: new Color("#66895a") },
+			uTipColor: { value: new Color("#9ab96e") },
 		};
 	}, []);
 

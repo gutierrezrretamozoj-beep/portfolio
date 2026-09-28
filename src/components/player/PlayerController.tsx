@@ -35,7 +35,7 @@ export function PlayerController({ inputRef, playerRef, points, colliders, targe
 	const waveTimer = useRef(0);
 	const currentAnimState = useRef<AvatarAnimationState>("idle");
 	const [animationState, setAnimationState] = useState<AvatarAnimationState>("idle");
-	const [avatarSpeed, setAvatarSpeed] = useState(0);
+	const avatarSpeed = useRef(0);
 	const { camera } = useThree();
 
 	useEffect(() => {
@@ -164,11 +164,11 @@ export function PlayerController({ inputRef, playerRef, points, colliders, targe
 			currentAnimState.current = nextState;
 			setAnimationState(nextState);
 		}
-		setAvatarSpeed(speed);
+		avatarSpeed.current = speed;
 
-		const lookAhead = 0.7;
+		const lookAhead = 0.8;
 		cameraAim.set(candidateX + sin * lookAhead, player.position.y + 1.25 + verticalLook.current, candidateZ - cos * lookAhead);
-		cameraPosition.set(candidateX - sin * 5.1, player.position.y + 3.1 + verticalLook.current, candidateZ + cos * 5.1);
+		cameraPosition.set(candidateX - sin * 4.9, player.position.y + 2.85 + verticalLook.current, candidateZ + cos * 4.9);
 		camera.position.lerp(cameraPosition, 1 - Math.exp(-5.2 * frame));
 		camera.lookAt(cameraAim);
 
@@ -195,8 +195,7 @@ export function PlayerController({ inputRef, playerRef, points, colliders, targe
 		<group ref={avatar}>
 			<AvatarModel
 				animationState={animationState}
-				speed={avatarSpeed}
-				modelUrl="/models/avatar.glb"
+				speedRef={avatarSpeed}
 			/>
 		</group>
 	);

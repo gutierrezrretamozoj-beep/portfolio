@@ -3,43 +3,41 @@
 import { useFrame } from "@react-three/fiber";
 import { useEffect, useMemo, useRef, useState } from "react";
 import {
+	Box3,
+	Color,
 	Group,
-	InstancedMesh,
 	MathUtils,
 	Mesh,
 	MeshStandardMaterial,
-	Object3D,
-	SphereGeometry,
 	Vector3,
 } from "three";
 import { useGLTF, useAnimations } from "@react-three/drei";
-import { useLayoutEffect } from "react";
 
 export type AvatarAnimationState = "idle" | "walk" | "run" | "wave";
 
 type AvatarModelProps = {
 	animationState: AvatarAnimationState;
-	speed: number;
+	speedRef: { current: number };
 	modelUrl?: string;
 };
 
 /**
  * Procedural stylized humanoid avatar ("Mini-David")
+ * Fixed: Completely removed any uninitialized instanced meshes.
+ * All hair components are cleanly sculpted stylized geometry with small, safe dimensions.
  */
 function ProceduralStylizedAvatar({
 	animationState,
-	speed,
+	speedRef,
 }: {
 	animationState: AvatarAnimationState;
-	speed: number;
+	speedRef: { current: number };
 }) {
 	const rootGroup = useRef<Group>(null);
 	const hipsGroup = useRef<Group>(null);
 	const spineGroup = useRef<Group>(null);
 	const chestGroup = useRef<Group>(null);
 	const headGroup = useRef<Group>(null);
-	const curlMesh = useRef<InstancedMesh>(null);
-	const curlGeometry = useMemo(() => new SphereGeometry(1, 8, 7), []);
 
 	const leftArm = useRef<Group>(null);
 	const rightArm = useRef<Group>(null);
@@ -60,22 +58,22 @@ function ProceduralStylizedAvatar({
 	const materials = useMemo(() => {
 		return {
 			skin: new MeshStandardMaterial({
-				color: "#bd805e",
+				color: "#fed7aa",
 				roughness: 0.55,
 				metalness: 0.02,
 			}),
 			hair: new MeshStandardMaterial({
-				color: "#211914",
+				color: "#1e2229",
 				roughness: 0.65,
-				metalness: 0.1,
+				metalness: 0.08,
 			}),
-				hoodie: new MeshStandardMaterial({
-				color: "#e7ddc9",
+			hoodie: new MeshStandardMaterial({
+				color: "#c7d2fe",
 				roughness: 0.78,
 				metalness: 0.04,
 			}),
-				hoodieInner: new MeshStandardMaterial({
-				color: "#c9bda6",
+			hoodieInner: new MeshStandardMaterial({
+				color: "#a5b4fc",
 				roughness: 0.85,
 			}),
 			tshirt: new MeshStandardMaterial({
@@ -87,7 +85,7 @@ function ProceduralStylizedAvatar({
 				roughness: 0.5,
 			}),
 			pants: new MeshStandardMaterial({
-				color: "#25354a",
+				color: "#334155",
 				roughness: 0.88,
 				metalness: 0.05,
 			}),
@@ -116,31 +114,13 @@ function ProceduralStylizedAvatar({
 				color: "#f472b6",
 				roughness: 0.6,
 				transparent: true,
-				opacity: 0.55,
+				opacity: 0.5,
+			}),
+			mouth: new MeshStandardMaterial({
+				color: "#b91c1c",
+				roughness: 0.5,
 			}),
 		};
-	}, []);
-
-	useLayoutEffect(() => {
-		if (!curlMesh.current) return;
-		const transform = new Object3D();
-		const count = 56;
-		for (let index = 0; index < count; index += 1) {
-			const row = Math.floor(index / 14);
-			const column = index % 14;
-			const theta = (column / 14) * Math.PI * 2 + row * 0.17;
-			const phi = 0.38 + row * 0.31;
-			const radius = 0.235;
-			transform.position.set(
-				Math.sin(phi) * Math.cos(theta) * radius,
-				0.055 + Math.cos(phi) * radius,
-				-0.025 + Math.sin(phi) * Math.sin(theta) * radius,
-			);
-			transform.scale.setScalar(0.072 + (index % 3) * 0.004);
-			transform.updateMatrix();
-			curlMesh.current.setMatrixAt(index, transform.matrix);
-		}
-		curlMesh.current.instanceMatrix.needsUpdate = true;
 	}, []);
 
 	useFrame((_, delta) => {
@@ -272,24 +252,28 @@ function ProceduralStylizedAvatar({
 							<cylinderGeometry args={[0.008, 0.008, 0.18, 6]} />
 						</mesh>
 
-						<mesh position={[0, 0.2, -0.16]} rotation={[-0.35, 0, 0]} castShadow material={materials.hoodieInner}>
-							<torusGeometry args={[0.16, 0.08, 12, 16, Math.PI * 1.2]} />
+						<mesh position={[0, 0.2, 0]} castShadow material={materials.hoodieInner}>
+							<cylinderGeometry args={[0.105, 0.12, 0.12, 16]} />
 						</mesh>
 
 						<mesh position={[0, 0.22, 0.14]} rotation={[0.4, 0, 0]} material={materials.tshirt}>
 							<cylinderGeometry args={[0.09, 0.09, 0.04, 12]} />
 						</mesh>
 
+						{/* Neck & Head */}
 						<group position={[0, 0.26, 0]}>
 							<mesh position={[0, 0.05, 0]} material={materials.skin}>
 								<cylinderGeometry args={[0.08, 0.09, 0.1, 12]} />
 							</mesh>
 
+							{/* Head group - Clean, stylized, strictly bounded geometry */}
 							<group ref={headGroup} position={[0, 0.22, 0]}>
+								{/* Cranium */}
 								<mesh castShadow material={materials.skin}>
-									<sphereGeometry args={[0.24, 20, 20]} />
+									<sphereGeometry args={[0.23, 20, 20]} />
 								</mesh>
 
+								{/* Left Eye */}
 								<group position={[-0.08, 0.02, 0.21]} rotation={[0, -0.2, 0]}>
 									<mesh material={materials.eyeWhite} scale={[0.055, 0.07, 0.015]}>
 										<sphereGeometry args={[1, 14, 14]} />
@@ -302,6 +286,7 @@ function ProceduralStylizedAvatar({
 									</mesh>
 								</group>
 
+								{/* Right Eye */}
 								<group position={[0.08, 0.02, 0.21]} rotation={[0, 0.2, 0]}>
 									<mesh material={materials.eyeWhite} scale={[0.055, 0.07, 0.015]}>
 										<sphereGeometry args={[1, 14, 14]} />
@@ -314,6 +299,7 @@ function ProceduralStylizedAvatar({
 									</mesh>
 								</group>
 
+								{/* Cheeks / Blush */}
 								<mesh position={[-0.12, -0.04, 0.19]} material={materials.blush} scale={[0.045, 0.025, 0.01]}>
 									<sphereGeometry args={[1, 10, 10]} />
 								</mesh>
@@ -321,25 +307,58 @@ function ProceduralStylizedAvatar({
 									<sphereGeometry args={[1, 10, 10]} />
 								</mesh>
 
+								{/* Nose & Mouth */}
+								<mesh position={[0, -0.015, 0.23]} material={materials.skin} scale={[0.025, 0.03, 0.02]}>
+									<sphereGeometry args={[1, 8, 8]} />
+								</mesh>
+								<mesh position={[0, -0.095, 0.215]} material={materials.mouth} scale={[0.038, 0.012, 0.008]}>
+									<sphereGeometry args={[1, 8, 8]} />
+								</mesh>
+
+								{/* Stylized Hair - Clean individual tufts, NO uninitialized instanced meshes */}
 								<group position={[0, 0.04, 0]}>
-									<mesh position={[0, 0.07, -0.03]} scale={[1.08, 1.05, 1.12]} castShadow material={materials.hair}>
-										<sphereGeometry args={[0.24, 18, 16]} />
+									{/* Main Hair Cap */}
+									<mesh position={[0, 0.07, -0.03]} scale={[1.06, 1.04, 1.1]} castShadow material={materials.hair}>
+										<sphereGeometry args={[0.235, 18, 16]} />
 									</mesh>
-									<instancedMesh ref={curlMesh} args={[curlGeometry, materials.hair, 56]} castShadow>
-									</instancedMesh>
+
+									{/* Front Bang Locks */}
+									<mesh position={[-0.09, 0.16, 0.17]} rotation={[0.4, -0.2, -0.3]} scale={[0.07, 0.13, 0.06]} castShadow material={materials.hair}>
+										<coneGeometry args={[1, 1.2, 7]} />
+									</mesh>
+									<mesh position={[-0.02, 0.18, 0.19]} rotation={[0.35, -0.05, -0.1]} scale={[0.08, 0.14, 0.07]} castShadow material={materials.hair}>
+										<coneGeometry args={[1, 1.2, 7]} />
+									</mesh>
+									<mesh position={[0.06, 0.17, 0.18]} rotation={[0.3, 0.15, 0.2]} scale={[0.075, 0.13, 0.065]} castShadow material={materials.hair}>
+										<coneGeometry args={[1, 1.2, 7]} />
+									</mesh>
+									<mesh position={[0.13, 0.14, 0.15]} rotation={[0.5, 0.3, 0.4]} scale={[0.07, 0.12, 0.06]} castShadow material={materials.hair}>
+										<coneGeometry args={[1, 1.2, 7]} />
+									</mesh>
+
+									{/* Sideburns */}
+									<mesh position={[-0.22, 0.01, 0.07]} rotation={[0, 0, -0.25]} scale={[0.04, 0.13, 0.06]} castShadow material={materials.hair}>
+										<coneGeometry args={[1, 1.2, 6]} />
+									</mesh>
+									<mesh position={[0.22, 0.01, 0.07]} rotation={[0, 0, 0.25]} scale={[0.04, 0.13, 0.06]} castShadow material={materials.hair}>
+										<coneGeometry args={[1, 1.2, 6]} />
+									</mesh>
+
+									{/* Subtle top curl volume */}
+									<mesh position={[-0.06, 0.24, 0.02]} scale={[0.06, 0.06, 0.06]} castShadow material={materials.hair}>
+										<sphereGeometry args={[1, 8, 8]} />
+									</mesh>
+									<mesh position={[0.06, 0.25, 0.03]} scale={[0.065, 0.065, 0.065]} castShadow material={materials.hair}>
+										<sphereGeometry args={[1, 8, 8]} />
+									</mesh>
+									<mesh position={[0, 0.26, -0.05]} scale={[0.07, 0.07, 0.07]} castShadow material={materials.hair}>
+										<sphereGeometry args={[1, 8, 8]} />
+									</mesh>
 								</group>
-									<mesh position={[-0.08, 0.105, 0.222]} rotation={[0, 0, 0.12]} material={materials.hair} scale={[0.09, 0.018, 0.018]}>
-										<sphereGeometry args={[1, 10, 8]} />
-									</mesh>
-									<mesh position={[0.08, 0.105, 0.222]} rotation={[0, 0, -0.12]} material={materials.hair} scale={[0.09, 0.018, 0.018]}>
-										<sphereGeometry args={[1, 10, 8]} />
-									</mesh>
-									<mesh position={[0, -0.015, 0.235]} material={materials.skin} scale={[0.025, 0.035, 0.02]}>
-										<sphereGeometry args={[1, 10, 8]} />
-									</mesh>
 							</group>
 						</group>
 
+						{/* Left Arm */}
 						<group ref={leftArm} position={[-0.28, 0.16, 0]}>
 							<mesh position={[0, -0.12, 0]} castShadow material={materials.hoodie}>
 								<cylinderGeometry args={[0.075, 0.07, 0.24, 12]} />
@@ -356,6 +375,7 @@ function ProceduralStylizedAvatar({
 							</group>
 						</group>
 
+						{/* Right Arm */}
 						<group ref={rightArm} position={[0.28, 0.16, 0]}>
 							<mesh position={[0, -0.12, 0]} castShadow material={materials.hoodie}>
 								<cylinderGeometry args={[0.075, 0.07, 0.24, 12]} />
@@ -374,6 +394,7 @@ function ProceduralStylizedAvatar({
 					</group>
 				</group>
 
+				{/* Left Leg */}
 				<group ref={leftLeg} position={[-0.12, -0.08, 0]}>
 					<mesh position={[0, -0.16, 0]} castShadow material={materials.pants}>
 						<cylinderGeometry args={[0.085, 0.075, 0.32, 12]} />
@@ -399,6 +420,7 @@ function ProceduralStylizedAvatar({
 					</group>
 				</group>
 
+				{/* Right Leg */}
 				<group ref={rightLeg} position={[0.12, -0.08, 0]}>
 					<mesh position={[0, -0.16, 0]} castShadow material={materials.pants}>
 						<cylinderGeometry args={[0.085, 0.075, 0.32, 12]} />
@@ -431,15 +453,39 @@ function ProceduralStylizedAvatar({
 function GLTFAvatar({
 	url,
 	animationState,
-	speed,
+	speedRef,
 }: {
 	url: string;
 	animationState: AvatarAnimationState;
-	speed: number;
+	speedRef: { current: number };
 }) {
 	const group = useRef<Group>(null);
 	const { scene, animations } = useGLTF(url);
 	const { actions, names } = useAnimations(animations, group);
+	const activeAction = useRef<any>(null);
+
+	// Validate bounding box & scale normalization
+	useEffect(() => {
+		if (!scene) return;
+		const box = new Box3().setFromObject(scene);
+		const size = new Vector3();
+		box.getSize(size);
+		if (size.y > 0.01 && (size.y > 3.0 || size.y < 0.6)) {
+			const scaleFactor = 1.7 / size.y;
+			scene.scale.setScalar(scaleFactor);
+		}
+		scene.traverse((child) => {
+			if ((child as Mesh).isMesh) {
+				child.castShadow = true;
+				child.receiveShadow = true;
+				const mat = (child as Mesh).material as MeshStandardMaterial;
+				if (mat) {
+					mat.roughness = Math.max(0.2, mat.roughness ?? 0.5);
+					mat.metalness = Math.min(0.8, mat.metalness ?? 0.1);
+				}
+			}
+		});
+	}, [scene]);
 
 	useEffect(() => {
 		if (!actions || names.length === 0) return;
@@ -459,33 +505,31 @@ function GLTFAvatar({
 		else if (animationState === "walk") targetAction = walkAction;
 		else if (animationState === "wave") targetAction = waveAction;
 
-		if (targetAction) {
+		if (targetAction && targetAction !== activeAction.current) {
 			targetAction.reset().fadeIn(0.2).play();
-			return () => {
-				targetAction?.fadeOut(0.2);
-			};
+			activeAction.current?.fadeOut(0.2);
+			activeAction.current = targetAction;
 		}
 	}, [actions, names, animationState]);
 
-	useEffect(() => {
-		scene.traverse((child) => {
-			if ((child as Mesh).isMesh) {
-				child.castShadow = true;
-				child.receiveShadow = true;
-			}
-		});
-	}, [scene]);
+	useFrame(() => {
+		if (!activeAction.current) return;
+		const nominalSpeed = animationState === "run" ? 4.3 : animationState === "walk" ? 2.7 : 1;
+		activeAction.current.timeScale = animationState === "idle" || animationState === "wave"
+			? 1
+			: MathUtils.clamp(speedRef.current / nominalSpeed, 0.72, 1.35);
+	});
 
 	return (
 		<group ref={group}>
-			<primitive object={scene} scale={1.0} position={[0, 0, 0]} />
+			<primitive object={scene} position={[0, 0, 0]} />
 		</group>
 	);
 }
 
 export function AvatarModel({
 	animationState,
-	speed,
+	speedRef,
 	modelUrl,
 }: AvatarModelProps) {
 	const [hasCustomModel, setHasCustomModel] = useState(false);
@@ -508,8 +552,8 @@ export function AvatarModel({
 	}, [modelUrl]);
 
 	if (hasCustomModel && modelUrl) {
-		return <GLTFAvatar url={modelUrl} animationState={animationState} speed={speed} />;
+		return <GLTFAvatar url={modelUrl} animationState={animationState} speedRef={speedRef} />;
 	}
 
-	return <ProceduralStylizedAvatar animationState={animationState} speed={speed} />;
+	return <ProceduralStylizedAvatar animationState={animationState} speedRef={speedRef} />;
 }

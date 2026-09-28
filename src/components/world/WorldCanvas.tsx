@@ -30,8 +30,8 @@ export default function WorldCanvas({ inputRef, playerRef, quality, target, onRe
 	return (
 		<Canvas
 			className="world-renderer"
-			camera={{ position: [0, 4.5, 25.2], fov: 54, near: 0.1, far: 150 }}
-			dpr={isLow ? [0.65, 0.85] : quality === "MEDIUM" ? [0.8, 1.15] : [1, 1.5]}
+			camera={{ position: [0, 4.5, 25.2], fov: 52, near: 0.25, far: 140 }}
+			dpr={isLow ? [0.7, 0.85] : quality === "MEDIUM" ? [0.85, 1.15] : [1, 1.5]}
 			shadows={quality === "HIGH" ? "percentage" : false}
 			gl={{ antialias: quality !== "LOW", alpha: false, powerPreference: "high-performance" }}
 			onCreated={({ gl }) => {

@@ -14,9 +14,11 @@ import {
 	InstancedMesh,
 	MeshStandardMaterial,
 	Object3D,
+	Vector2,
 } from "three";
 import { treePositions, worldPoints } from "@/data/world";
 import { terrainHeight } from "@/components/world/terrain-utils";
+import { createProceduralSurfaceMaps } from "@/components/world/procedural-surface";
 import type { WorldPoint } from "@/types/world";
 
 type VegetationProps = {
@@ -28,18 +30,18 @@ const foliagePalettes = [
 	{ base: "#416e3c", mid: "#6fa754", tip: "#a6d66e" },
 	{ base: "#376246", mid: "#57956a", tip: "#8fd59b" },
 	{ base: "#596e38", mid: "#88a34b", tip: "#c8df72" },
-	{ base: "#6e4560", mid: "#a8688c", tip: "#f4a8cb" },
-	{ base: "#484f73", mid: "#6b77a7", tip: "#b4c3e8" },
+	{ base: "#526b4b", mid: "#829a65", tip: "#b7c987" },
+	{ base: "#426854", mid: "#69937a", tip: "#a5c8a6" },
 ];
 
 const flowerColors = [
-	"#f472b6",
-	"#c084fc",
-	"#38bdf8",
-	"#facc15",
-	"#4ade80",
-	"#fb7185",
-	"#a78bfa",
+	"#efb8cf",
+	"#d2bde8",
+	"#b8dbe2",
+	"#efd9a9",
+	"#c5dfc4",
+	"#e9bdba",
+	"#c9c2e6",
 ];
 
 function createStylizedCanopyGeometry(radius: number, detail: number) {
@@ -139,7 +141,7 @@ function Forest({ quality, reducedMotion }: { quality: VegetationProps["quality"
 				`
 				#include <color_fragment>
 				float rim = 1.0 - max(dot(geometryNormal, vec3(0.0, 0.0, 1.0)), 0.0);
-				diffuseColor.rgb += diffuseColor.rgb * pow(rim, 3.5) * 0.22;
+				diffuseColor.rgb += diffuseColor.rgb * pow(rim, 3.5) * 0.1;
 				`
 			);
 		};
@@ -148,13 +150,17 @@ function Forest({ quality, reducedMotion }: { quality: VegetationProps["quality"
 		return material;
 	}, [windTime]);
 
+	const barkMaps = useMemo(() => createProceduralSurfaceMaps(15, 128, [1, 3]), []);
 	const barkMaterial = useMemo(() => {
 		return new MeshStandardMaterial({
 			color: "#755239",
 			roughness: 0.92,
 			metalness: 0.02,
+			normalMap: barkMaps.normalMap,
+			roughnessMap: barkMaps.roughnessMap,
+			normalScale: new Vector2(0.16, 0.36),
 		});
-	}, []);
+	}, [barkMaps]);
 
 	useLayoutEffect(() => {
 		if (!trunks.current || !mainCanopies.current || !subCanopies.current || !pines.current) return;
@@ -261,13 +267,17 @@ function StylizedRocks() {
 		return geom;
 	}, []);
 
+	const stoneMaps = useMemo(() => createProceduralSurfaceMaps(22, 128, [2, 2]), []);
 	const stoneMaterial = useMemo(() => {
 		return new MeshStandardMaterial({
 			color: "#8a968b",
 			roughness: 0.88,
 			metalness: 0.05,
+			normalMap: stoneMaps.normalMap,
+			roughnessMap: stoneMaps.roughnessMap,
+			normalScale: new Vector2(0.2, 0.2),
 		});
-	}, []);
+	}, [stoneMaps]);
 
 	return (
 		<group>

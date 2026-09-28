@@ -7,7 +7,6 @@ import {
 	BufferAttribute,
 	BufferGeometry,
 	Color,
-	DoubleSide,
 	FogExp2,
 	Group,
 	IcosahedronGeometry,
@@ -114,48 +113,6 @@ function DriftingVolumetricCloud({
 }
 
 /**
- * Sun Core, Golden Corona & Lens Flare Glow in the Sky
- */
-function SunOrbWithCorona({ position }: { position: [number, number, number] }) {
-	const flareRef = useRef<Group>(null);
-
-	useFrame(({ clock }) => {
-		if (!flareRef.current) return;
-		// Gentle breathing pulsation of the sun halo
-		const pulse = 1.0 + Math.sin(clock.elapsedTime * 1.5) * 0.04;
-		flareRef.current.scale.set(pulse, pulse, pulse);
-	});
-
-	return (
-		<group position={position} ref={flareRef}>
-			{/* High-intensity brilliant sun core */}
-			<mesh>
-				<sphereGeometry args={[4.2, 32, 32]} />
-				<meshBasicMaterial color="#fffef0" />
-			</mesh>
-
-			{/* Inner warm golden corona */}
-			<mesh rotation={[0, 0, 0]}>
-				<ringGeometry args={[4.2, 10.5, 36]} />
-				<meshBasicMaterial color="#fef08a" transparent opacity={0.42} side={DoubleSide} depthWrite={false} />
-			</mesh>
-
-			{/* Radiant soft lens flare aura */}
-			<mesh rotation={[0, 0, 0]}>
-				<ringGeometry args={[9.5, 22.0, 36]} />
-				<meshBasicMaterial color="#fed7aa" transparent opacity={0.18} side={DoubleSide} depthWrite={false} />
-			</mesh>
-
-			{/* Outer atmospheric peach halo */}
-			<mesh rotation={[0, 0, 0]}>
-				<ringGeometry args={[20.0, 38.0, 36]} />
-				<meshBasicMaterial color="#e0f2fe" transparent opacity={0.08} side={DoubleSide} depthWrite={false} />
-			</mesh>
-		</group>
-	);
-}
-
-/**
  * Floating sunlit pollen motes drifting on the breeze
  */
 function SunlitMotes({ count = 130 }: { count?: number }) {
@@ -188,9 +145,9 @@ function SunlitMotes({ count = 130 }: { count?: number }) {
 		<points ref={pointsRef} geometry={geometry}>
 			<pointsMaterial
 				size={0.16}
-				color="#fef08a"
+				color="#f6e8bb"
 				transparent
-				opacity={0.65}
+				opacity={0.42}
 				depthWrite={false}
 			/>
 		</points>
@@ -203,12 +160,10 @@ export function Environment() {
 
 	// Coordinated clouds drifting across the sky at different altitudes & speeds
 	const cloudLayers: Array<{ pos: [number, number, number]; scale: number; speed: number }> = [
-		{ pos: [-35, 23, -25], scale: 3.2, speed: 0.95 },
-		{ pos: [10, 26, -35], scale: 3.8, speed: 0.7 },
-		{ pos: [-15, 29, -15], scale: 2.8, speed: 1.15 },
-		{ pos: [32, 24, -20], scale: 3.4, speed: 0.8 },
-		{ pos: [-45, 27, 8], scale: 3.0, speed: 1.05 },
-		{ pos: [5, 31, 15], scale: 3.6, speed: 0.65 },
+		{ pos: [-35, 23, -25], scale: 2.8, speed: 0.48 },
+		{ pos: [10, 26, -35], scale: 3.2, speed: 0.36 },
+		{ pos: [-15, 29, -15], scale: 2.5, speed: 0.58 },
+		{ pos: [32, 24, -20], scale: 2.9, speed: 0.42 },
 	];
 
 	return (
@@ -228,16 +183,13 @@ export function Environment() {
 				mieDirectionalG={0.88}
 			/>
 
-			{/* Visible Sun Orb with Corona Flare */}
-			<SunOrbWithCorona position={sunPos} />
-
 			{/* Ambient Fill */}
-			<ambientLight intensity={0.58} color="#fffbeb" />
+			<ambientLight intensity={0.42} color="#fffbeb" />
 
 			{/* Warm Sun Light with Soft PCF Shadows */}
 			<directionalLight
 				position={sunPos}
-				intensity={2.4}
+				intensity={1.85}
 				color="#fff3dd"
 				castShadow
 				shadow-mapSize-width={2048}
@@ -252,7 +204,7 @@ export function Environment() {
 			/>
 
 			{/* Dual Hemisphere Light: Sky Radiance + Grass Bounce */}
-			<hemisphereLight args={["#e0f2fe", "#96ab7b", 0.95]} />
+			<hemisphereLight args={["#e0f2fe", "#96ab7b", 0.72]} />
 
 			{/* Distant Mountain Silhouettes */}
 			{mountainData.map(([x, y, z, scale, color], index) => (
@@ -270,7 +222,7 @@ export function Environment() {
 			))}
 
 			{/* Sunlit Airborne Motes */}
-			<SunlitMotes count={130} />
+			<SunlitMotes count={54} />
 		</>
 	);
 }

@@ -9,10 +9,12 @@ import {
 	DoubleSide,
 	MeshStandardMaterial,
 	PlaneGeometry,
+	Vector2,
 	Vector3,
 } from "three";
 import { terrainHeight } from "@/components/world/terrain-utils";
 import { InstancedGrass } from "@/components/world/InstancedGrass";
+import { createProceduralSurfaceMaps } from "@/components/world/procedural-surface";
 import type { PlayerRuntime } from "@/types/world";
 
 const TERRAIN_WIDTH = 58;
@@ -110,7 +112,8 @@ function createPath(points: [number, number, number][], width: number) {
 		for (const sign of [-1, 1]) {
 			const x = point.x + sideX * width * 0.5 * sign;
 			const z = point.z + sideZ * width * 0.5 * sign;
-			positions.push(x, terrainHeight(x, z) + 0.045, z);
+			// Safe physical elevation +0.075m above terrain
+			positions.push(x, terrainHeight(x, z) + 0.075, z);
 			uvs.push(sign === -1 ? 0 : 1, t * 15);
 		}
 
@@ -136,33 +139,52 @@ type TerrainProps = {
 export function Terrain({ quality = "HIGH", playerRef }: TerrainProps) {
 	const geometry = useMemo(() => createTerrain(), []);
 	const pathGeometries = useMemo(() => paths.map((points) => createPath(points, 1.4)), []);
+	const grassMaps = useMemo(() => createProceduralSurfaceMaps(4, 128, [12, 16]), []);
+	const pathMaps = useMemo(() => createProceduralSurfaceMaps(9, 128, [2, 1]), []);
 
 	const terrainMaterial = useMemo(() => {
 		return new MeshStandardMaterial({
 			vertexColors: true,
 			roughness: 0.88,
 			metalness: 0.04,
+			normalMap: grassMaps.normalMap,
+			roughnessMap: grassMaps.roughnessMap,
+			normalScale: new Vector2(0.28, 0.28),
 			side: DoubleSide,
 		});
-	}, []);
+	}, [grassMaps]);
 
+	// Professional Anti-ZFighting Path Material with GPU PolygonOffset
 	const pathMaterial = useMemo(() => {
 		return new MeshStandardMaterial({
 			color: "#c9b48b",
 			roughness: 0.94,
 			metalness: 0.02,
+			normalMap: pathMaps.normalMap,
+			roughnessMap: pathMaps.roughnessMap,
+			normalScale: new Vector2(0.12, 0.3),
+			polygonOffset: true,
+			polygonOffsetFactor: -3.0,
+			polygonOffsetUnits: -6.0,
 			side: DoubleSide,
 		});
-	}, []);
+	}, [pathMaps]);
 
 	return (
 		<group>
+			{/* Main Terrain */}
 			<mesh geometry={geometry} material={terrainMaterial} receiveShadow />
+
+			{/* Curving Pathways (Zero Z-fighting) */}
 			{pathGeometries.map((path, index) => (
 				<mesh key={index} geometry={path} material={pathMaterial} receiveShadow />
 			))}
+
+			{/* Dynamic Instanced Grass */}
 			<InstancedGrass quality={quality} playerRef={playerRef} distanceToPaths={distanceToPaths} />
-			<mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, -0.65, 0]} receiveShadow>
+
+			{/* Horizon Skirt placed deep below terrain to prevent any edge flicker */}
+			<mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, -1.8, 0]} receiveShadow>
 				<planeGeometry args={[600, 600]} />
 				<meshStandardMaterial color="#6a9e5e" roughness={0.95} />
 			</mesh>
