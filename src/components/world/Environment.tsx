@@ -201,7 +201,7 @@ export function Environment() {
 				shadow-camera-top={38}
 				shadow-camera-bottom={-38}
 				shadow-bias={-0.00005}
-				shadow-normalBias={0.05}
+				shadow-normalBias={0.04}
 			/>
 
 			{/* Dual Hemisphere Light: Sky Radiance + Grass Bounce */}
