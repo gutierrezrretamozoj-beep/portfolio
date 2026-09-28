@@ -34,22 +34,33 @@ function Mountain({
 	scale: number;
 }) {
 	const geometry = useMemo(() => {
-		const shape = new IcosahedronGeometry(1, 3);
+		const shape = new IcosahedronGeometry(1, 4);
 		const positions = shape.attributes.position;
+		const vertexColors: number[] = [];
+		const rockColor = new Color(color);
+		const snowColor = new Color("#f7fcff");
 		for (let index = 0; index < positions.count; index += 1) {
 			const x = positions.getX(index);
 			const y = positions.getY(index);
 			const z = positions.getZ(index);
-			const variation = 1 + Math.sin(x * 9 + z * 5) * 0.05 + Math.cos(y * 12 - x * 3) * 0.03;
-			positions.setXYZ(index, x * variation, y * variation, z * variation);
+			const ridge = Math.sin(x * 8 + z * 5) * 0.045 + Math.cos(z * 11 - y * 4) * 0.03;
+			const variation = 1 + Math.sin(x * 9 + z * 5) * 0.07 + Math.cos(y * 12 - x * 3) * 0.04;
+			const peakTaper = 1 - Math.max(0, y) * 0.16;
+			const peakLift = y > 0 ? y * y * 0.15 : 0;
+			positions.setXYZ(index, x * variation * peakTaper, y * variation + peakLift, z * variation * peakTaper);
+			const snow = Math.max(0, Math.min(1, (y + ridge - 0.47) * 9));
+			const shadedRock = rockColor.clone().multiplyScalar(0.88 + (Math.sin(x * 19 + z * 13) * 0.06 + 0.06));
+			const finalColor = shadedRock.lerp(snowColor, snow);
+			vertexColors.push(finalColor.r, finalColor.g, finalColor.b);
 		}
+		shape.setAttribute("color", new BufferAttribute(new Float32Array(vertexColors), 3));
 		shape.computeVertexNormals();
 		return shape;
-	}, []);
+	}, [color]);
 
 	return (
 		<mesh geometry={geometry} position={position} scale={[scale * 1.5, scale, scale * 0.8]} castShadow>
-			<meshStandardMaterial color={color} roughness={0.92} metalness={0.02} />
+			<meshStandardMaterial vertexColors roughness={0.88} metalness={0.015} />
 		</mesh>
 	);
 }
