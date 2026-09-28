@@ -6,7 +6,10 @@ import { useMemo, useRef } from "react";
 import {
 	BufferAttribute,
 	BufferGeometry,
+	Color,
+	DoubleSide,
 	FogExp2,
+	Group,
 	IcosahedronGeometry,
 	Points,
 } from "three";
@@ -51,51 +54,108 @@ function Mountain({
 	);
 }
 
-function SoftCloud({
-	position,
+/**
+ * Procedural Volumetric Stylized Cloud
+ * Drifts naturally with wind speed and wraps seamlessly around the world horizon
+ */
+function DriftingVolumetricCloud({
+	initialPos,
 	scale,
-	speed = 0.02,
+	speed,
 }: {
-	position: [number, number, number];
+	initialPos: [number, number, number];
 	scale: number;
-	speed?: number;
+	speed: number;
 }) {
-	const cloudRef = useRef<any>(null);
-	const initialX = position[0];
+	const cloudRef = useRef<Group>(null);
+	const currentX = useRef(initialPos[0]);
 
-	useFrame(({ clock }) => {
-		if (cloudRef.current) {
-			cloudRef.current.position.x = initialX + Math.sin(clock.elapsedTime * speed) * 4.5;
+	useFrame((_, delta) => {
+		if (!cloudRef.current) return;
+		const dt = Math.min(delta, 0.05);
+
+		// Drift along X axis
+		currentX.current += speed * dt;
+		if (currentX.current > 58) {
+			currentX.current = -58;
 		}
+
+		cloudRef.current.position.x = currentX.current;
 	});
 
+	// Soft puffy cloud composed of multiple organic lobes
 	return (
-		<group ref={cloudRef} position={position} scale={scale}>
+		<group ref={cloudRef} position={initialPos} scale={scale}>
 			{[
-				[-0.9, 0, 0],
-				[0, 0.22, 0.1],
-				[0.95, 0, 0],
-				[0.42, -0.12, 0.25],
-				[-0.45, 0.14, -0.2],
-			].map(([x, y, z], index) => (
-				<mesh key={index} position={[x, y, z]} scale={[1.35, 0.42, 0.65]}>
+				{ pos: [-1.2, 0, 0], scale: [1.4, 0.5, 0.7] },
+				{ pos: [-0.4, 0.28, 0.15], scale: [1.6, 0.65, 0.85] },
+				{ pos: [0.5, 0.15, -0.1], scale: [1.5, 0.55, 0.8] },
+				{ pos: [1.3, -0.05, 0.05], scale: [1.2, 0.45, 0.65] },
+				{ pos: [0.1, -0.18, 0.25], scale: [1.3, 0.4, 0.6] },
+			].map((lobe, index) => (
+				<mesh key={index} position={lobe.pos as [number, number, number]} scale={lobe.scale as [number, number, number]}>
 					<sphereGeometry args={[1, 16, 12]} />
-					<meshBasicMaterial color="#ffffff" transparent opacity={0.42} depthWrite={false} />
+					<meshBasicMaterial color="#ffffff" transparent opacity={0.46} depthWrite={false} />
 				</mesh>
 			))}
 		</group>
 	);
 }
 
-function SunlitMotes({ count = 120 }: { count?: number }) {
+/**
+ * Sun Core, Golden Corona & Lens Flare Glow in the Sky
+ */
+function SunOrbWithCorona({ position }: { position: [number, number, number] }) {
+	const flareRef = useRef<Group>(null);
+
+	useFrame(({ clock }) => {
+		if (!flareRef.current) return;
+		// Gentle breathing pulsation of the sun halo
+		const pulse = 1.0 + Math.sin(clock.elapsedTime * 1.5) * 0.04;
+		flareRef.current.scale.set(pulse, pulse, pulse);
+	});
+
+	return (
+		<group position={position} ref={flareRef}>
+			{/* High-intensity brilliant sun core */}
+			<mesh>
+				<sphereGeometry args={[4.2, 32, 32]} />
+				<meshBasicMaterial color="#fffef0" />
+			</mesh>
+
+			{/* Inner warm golden corona */}
+			<mesh rotation={[0, 0, 0]}>
+				<ringGeometry args={[4.2, 10.5, 36]} />
+				<meshBasicMaterial color="#fef08a" transparent opacity={0.42} side={DoubleSide} depthWrite={false} />
+			</mesh>
+
+			{/* Radiant soft lens flare aura */}
+			<mesh rotation={[0, 0, 0]}>
+				<ringGeometry args={[9.5, 22.0, 36]} />
+				<meshBasicMaterial color="#fed7aa" transparent opacity={0.18} side={DoubleSide} depthWrite={false} />
+			</mesh>
+
+			{/* Outer atmospheric peach halo */}
+			<mesh rotation={[0, 0, 0]}>
+				<ringGeometry args={[20.0, 38.0, 36]} />
+				<meshBasicMaterial color="#e0f2fe" transparent opacity={0.08} side={DoubleSide} depthWrite={false} />
+			</mesh>
+		</group>
+	);
+}
+
+/**
+ * Floating sunlit pollen motes drifting on the breeze
+ */
+function SunlitMotes({ count = 130 }: { count?: number }) {
 	const pointsRef = useRef<Points>(null);
 
 	const { geometry, positions } = useMemo(() => {
 		const pos = new Float32Array(count * 3);
 		for (let i = 0; i < count; i++) {
-			pos[i * 3] = (Math.random() - 0.5) * 50;
+			pos[i * 3] = (Math.random() - 0.5) * 52;
 			pos[i * 3 + 1] = Math.random() * 8 + 0.5;
-			pos[i * 3 + 2] = (Math.random() - 0.5) * 50;
+			pos[i * 3 + 2] = (Math.random() - 0.5) * 52;
 		}
 		const geom = new BufferGeometry();
 		geom.setAttribute("position", new BufferAttribute(pos, 3));
@@ -128,15 +188,27 @@ function SunlitMotes({ count = 120 }: { count?: number }) {
 
 export function Environment() {
 	const fog = useMemo(() => new FogExp2("#dff1f7", 0.0085), []);
+	const sunPos: [number, number, number] = [45, 32, -75];
+
+	// Coordinated clouds drifting across the sky at different altitudes & speeds
+	const cloudLayers: Array<{ pos: [number, number, number]; scale: number; speed: number }> = [
+		{ pos: [-35, 23, -25], scale: 3.2, speed: 0.95 },
+		{ pos: [10, 26, -35], scale: 3.8, speed: 0.7 },
+		{ pos: [-15, 29, -15], scale: 2.8, speed: 1.15 },
+		{ pos: [32, 24, -20], scale: 3.4, speed: 0.8 },
+		{ pos: [-45, 27, 8], scale: 3.0, speed: 1.05 },
+		{ pos: [5, 31, 15], scale: 3.6, speed: 0.65 },
+	];
 
 	return (
 		<>
 			<color attach="background" args={["#cdecf8"]} />
 			<primitive attach="fog" object={fog} />
 
+			{/* Luminous Morning Sky Dome */}
 			<Sky
 				distance={450000}
-				sunPosition={[45, 32, -75]}
+				sunPosition={sunPos}
 				inclination={0.52}
 				azimuth={0.25}
 				rayleigh={1.4}
@@ -145,35 +217,49 @@ export function Environment() {
 				mieDirectionalG={0.88}
 			/>
 
-			<ambientLight intensity={0.55} color="#fffbeb" />
+			{/* Visible Sun Orb with Corona Flare */}
+			<SunOrbWithCorona position={sunPos} />
 
+			{/* Ambient Fill */}
+			<ambientLight intensity={0.58} color="#fffbeb" />
+
+			{/* Warm Sun Light with Soft PCF Shadows */}
 			<directionalLight
-				position={[-18, 30, 16]}
-				intensity={2.35}
-				color="#fff4e0"
+				position={sunPos}
+				intensity={2.4}
+				color="#fff3dd"
 				castShadow
 				shadow-mapSize-width={2048}
 				shadow-mapSize-height={2048}
 				shadow-camera-near={1}
-				shadow-camera-far={85}
-				shadow-camera-left={-35}
-				shadow-camera-right={35}
-				shadow-camera-top={35}
-				shadow-camera-bottom={-35}
+				shadow-camera-far={95}
+				shadow-camera-left={-38}
+				shadow-camera-right={38}
+				shadow-camera-top={38}
+				shadow-camera-bottom={-38}
 				shadow-bias={-0.00015}
 			/>
 
+			{/* Dual Hemisphere Light: Sky Radiance + Grass Bounce */}
 			<hemisphereLight args={["#e0f2fe", "#96ab7b", 0.95]} />
 
+			{/* Distant Mountain Silhouettes */}
 			{mountainData.map(([x, y, z, scale, color], index) => (
 				<Mountain key={index} position={[x, y, z]} scale={scale} color={color} />
 			))}
 
-			<SoftCloud position={[-20, 14, -18]} scale={3.4} speed={0.03} />
-			<SoftCloud position={[18, 17, -24]} scale={2.8} speed={0.02} />
-			<SoftCloud position={[-6, 19, -32]} scale={3.8} speed={0.015} />
+			{/* Volumetric Clouds Drifting with Wind Parallax */}
+			{cloudLayers.map((cloud, index) => (
+				<DriftingVolumetricCloud
+					key={index}
+					initialPos={cloud.pos}
+					scale={cloud.scale}
+					speed={cloud.speed}
+				/>
+			))}
 
-			<SunlitMotes count={140} />
+			{/* Sunlit Airborne Motes */}
+			<SunlitMotes count={130} />
 		</>
 	);
 }
