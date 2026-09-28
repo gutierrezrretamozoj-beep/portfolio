@@ -1,36 +1,64 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# David's World
 
-## Getting Started
+Portafolio personal explorable de José Gutiérrez. El canvas 3D es el mundo principal; una interfaz ligera permite caminar, descubrir lugares e interactuar con su historia, habilidades y proyectos.
 
-First, run the development server:
+## Tecnologías
+
+- Next.js 16 con App Router y TypeScript
+- Tailwind CSS 4 y CSS para el sistema visual
+- Three.js, React Three Fiber y Drei para terreno, agua, vegetación, estructuras y cámara
+- Motion para respetar la preferencia de movimiento reducido
+- Lucide React para iconos
+
+## Desarrollo local
+
+Requiere Node.js compatible con Next.js 16 y npm.
 
 ```bash
+npm install
 npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+Abre <http://localhost:3000>. Para validar una compilación de producción:
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+```bash
+npm run lint
+npm run build
+npm run start
+```
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+## Estructura
 
-## Learn More
+```text
+src/
+	app/              Layout, metadata y HUD styles
+	components/
+		player/         Movimiento, cámara y joystick
+		ui/             Loading, menú, mapa y paneles
+		world/          Terreno, río, entorno, vegetación y landmarks
+	data/             Perfil, proyectos, skills, journey y mapa
+	hooks/            Detección de capacidad del dispositivo
+	types/            Datos de portfolio y mundo
+public/
+	images/           Fotografías
+	models/           Reservado para GLB/GLTF con licencia
+	textures/         Reservado para texturas optimizadas con licencia
+```
 
-To learn more about Next.js, take a look at the following resources:
+La página se monta desde `src/app/page.tsx`; `WorldExperience` administra estado y controles, y `WorldCanvas` compone la escena R3F. El mapa compacto conecta bosque/About, claro Digital DNA, río y puente, Project Valley, jardín, Natural Tech Lab, cabaña y lago de contacto. WASD/flechas mueven, el arrastre mira, `E` interactúa y `M` abre/cierra el mapa. En móvil aparecen joystick, zona de mirada y botón de interacción.
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+Los hotspots de proyectos se generan desde `src/data/projects.ts`; los enlaces siguen como “Coming soon” hasta incorporar URLs reales. No se descargaron modelos externos. Para sustituir la geometría de placeholder, registra nombre del asset, fuente y licencia junto al GLB/GLTF correspondiente.
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+## Personalización
 
-## Deploy on Vercel
+- Actualiza nombre, enlaces y rutas de imagen en `src/data/profile.ts`.
+- Sustituye los datos provisionales de proyectos en `src/data/projects.ts`.
+- Ajusta habilidades, trayectoria, intereses y aprendizaje en los módulos vecinos de `src/data/`.
+- Los puntos, waypoints y árboles del mapa se editan en `src/data/world.ts`.
+- Coloca la segunda foto (retrato principal) en `public/images/david-profile.jpg` y, si se desea, la foto lifestyle en `public/images/david-lifestyle.jpg`. Los JPG actuales son píxeles de 1×1; el mundo no inventa un rostro y deja un placeholder hasta sustituirlos por fotos reales.
+- La paleta, HUD, paneles y controles responsivos viven en `src/app/globals.css`.
+- El viento ambiental se sintetiza localmente y solo empieza al pulsar `SOUND ON`; no se reproduce ni descarga audio automáticamente.
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
+## Publicación
 
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+Sube el repositorio a GitHub y conecta la rama con Vercel. Vercel detecta Next.js automáticamente; el comando de build es `npm run build` y no se requieren variables de entorno para esta versión.
