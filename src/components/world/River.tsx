@@ -155,11 +155,11 @@ function MovingWater({ reducedMotion }: { reducedMotion: boolean }) {
 
 				float c1 = sin(vWaterUv.x * 48.0 - uTime * 2.0 + vWaterUv.y * 22.0);
 				float c2 = cos(vWaterUv.x * 32.0 + uTime * 1.4 - vWaterUv.y * 28.0);
-				float causticPattern = pow(max(0.0, c1 * c2), 2.2);
+				float causticPattern = pow(max(0.0, c1 * c2), 3.0) * 0.45;
 
 				vec3 waterCol = mix(deepWater, midWater, smoothstep(0.1, 0.4, edgeDist));
 				waterCol = mix(waterCol, shallow, smoothstep(0.4, 0.0, edgeDist));
-				waterCol = mix(waterCol, foamColor, foam * 0.85 + causticPattern * 0.18);
+				waterCol = mix(waterCol, foamColor, foam * 0.75 + causticPattern * 0.1);
 
 				diffuseColor.rgb = waterCol;
 				`

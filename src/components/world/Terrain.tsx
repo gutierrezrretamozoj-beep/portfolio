@@ -9,12 +9,10 @@ import {
 	DoubleSide,
 	MeshStandardMaterial,
 	PlaneGeometry,
-	Vector2,
 	Vector3,
 } from "three";
 import { terrainHeight } from "@/components/world/terrain-utils";
 import { InstancedGrass } from "@/components/world/InstancedGrass";
-import { createProceduralSurfaceMaps } from "@/components/world/procedural-surface";
 import type { PlayerRuntime } from "@/types/world";
 
 const TERRAIN_WIDTH = 58;
@@ -53,12 +51,14 @@ function createTerrain() {
 	const positions = geometry.attributes.position;
 	const colors: number[] = [];
 
-	const deepGrass = new Color("#5b8f52");
-	const lushGrass = new Color("#7eb56e");
-	const sunlitGrass = new Color("#b1d77a");
-	const cliffRock = new Color("#7d8c76");
-	const pathSoil = new Color("#d1c09b");
-	const riverBank = new Color("#6b8865");
+	// Natural, soft Ghibli meadow palette - 100% matte organic ground
+	const deepGrass = new Color("#528543");   // Rich meadow grass
+	const lushGrass = new Color("#689b53");   // Vibrant natural green
+	const warmMeadow = new Color("#7cae61");  // Warm sunlit grass
+	const softClover = new Color("#5b8b4b");  // Natural clover patch
+	const cliffRock = new Color("#6c7b66");   // Earthy cliff slope
+	const pathSoil = new Color("#b8a379");    // Warm sandy loam along paths
+	const riverBank = new Color("#55704d");   // Damp riverbank earth
 
 	for (let index = 0; index < positions.count; index += 1) {
 		const x = positions.getX(index);
@@ -66,10 +66,17 @@ function createTerrain() {
 		const height = terrainHeight(x, z);
 		positions.setZ(index, height);
 
-		const noisePatch = (Math.sin(x * 0.28 + z * 0.17) + Math.cos(x * 0.12 - z * 0.25)) * 0.25 + 0.5;
-		const color = deepGrass.clone().lerp(lushGrass, noisePatch);
-		color.lerp(sunlitGrass, Math.max(0, Math.min(0.7, (height - 0.2) * 0.35)));
+		// Multi-octave natural organic noise for lush meadow blending (no artificial grid tiling!)
+		const n1 = Math.sin(x * 0.18 + z * 0.14) * 0.5 + 0.5;
+		const n2 = Math.cos(x * 0.08 - z * 0.19) * 0.5 + 0.5;
+		const n3 = Math.sin(x * 0.42 + z * 0.35) * 0.15;
+		const meadowBlend = Math.max(0, Math.min(1, n1 * 0.6 + n2 * 0.4 + n3));
 
+		const color = deepGrass.clone().lerp(lushGrass, meadowBlend);
+		color.lerp(warmMeadow, Math.max(0, Math.min(0.65, (height - 0.15) * 0.3 + n2 * 0.2)));
+		color.lerp(softClover, Math.max(0, Math.min(0.35, n3 * 1.5)));
+
+		// River bank damp loam
 		const riverCenter = -2.5 + Math.sin(x * 0.13) * 0.75;
 		const distToRiver = Math.abs(z - riverCenter);
 		if (distToRiver < 3.2) {
@@ -77,13 +84,15 @@ function createTerrain() {
 			color.lerp(riverBank, riverBlend);
 		}
 
+		// Cliff slope steepness
 		if (height > 1.8) {
-			const rockBlend = Math.min(0.65, (height - 1.8) * 0.45);
+			const rockBlend = Math.min(0.6, (height - 1.8) * 0.4);
 			color.lerp(cliffRock, rockBlend);
 		}
 
+		// Path soil blending
 		const pathDistance = distanceToPaths(x, z);
-		const pathBlend = Math.max(0, 1 - pathDistance / 2.6) ** 2 * 0.45;
+		const pathBlend = Math.max(0, 1 - pathDistance / 2.6) ** 2 * 0.4;
 		color.lerp(pathSoil, pathBlend);
 
 		colors.push(color.r, color.g, color.b);
@@ -112,7 +121,6 @@ function createPath(points: [number, number, number][], width: number) {
 		for (const sign of [-1, 1]) {
 			const x = point.x + sideX * width * 0.5 * sign;
 			const z = point.z + sideZ * width * 0.5 * sign;
-			// Safe physical elevation +0.075m above terrain
 			positions.push(x, terrainHeight(x, z) + 0.075, z);
 			uvs.push(sign === -1 ? 0 : 1, t * 15);
 		}
@@ -139,43 +147,36 @@ type TerrainProps = {
 export function Terrain({ quality = "HIGH", playerRef }: TerrainProps) {
 	const geometry = useMemo(() => createTerrain(), []);
 	const pathGeometries = useMemo(() => paths.map((points) => createPath(points, 1.4)), []);
-	const grassMaps = useMemo(() => createProceduralSurfaceMaps(4, 128, [12, 16]), []);
-	const pathMaps = useMemo(() => createProceduralSurfaceMaps(9, 128, [2, 1]), []);
 
+	// 100% Matte Natural Ground: zero tile shine, zero specular glare
 	const terrainMaterial = useMemo(() => {
 		return new MeshStandardMaterial({
 			vertexColors: true,
-			roughness: 0.88,
-			metalness: 0.04,
-			normalMap: grassMaps.normalMap,
-			roughnessMap: grassMaps.roughnessMap,
-			normalScale: new Vector2(0.28, 0.28),
+			roughness: 1.0,  // Pure matte natural earth & grass
+			metalness: 0.0,  // Zero metallic reflection
 			side: DoubleSide,
 		});
-	}, [grassMaps]);
+	}, []);
 
-	// Professional Anti-ZFighting Path Material with GPU PolygonOffset
+	// Natural earth/sand pathway material with GPU PolygonOffset (no Z-fighting)
 	const pathMaterial = useMemo(() => {
 		return new MeshStandardMaterial({
-			color: "#c9b48b",
-			roughness: 0.94,
-			metalness: 0.02,
-			normalMap: pathMaps.normalMap,
-			roughnessMap: pathMaps.roughnessMap,
-			normalScale: new Vector2(0.12, 0.3),
+			color: "#bfa980", // Warm natural soil & gravel
+			roughness: 1.0,   // Pure matte earth
+			metalness: 0.0,
 			polygonOffset: true,
 			polygonOffsetFactor: -3.0,
 			polygonOffsetUnits: -6.0,
 			side: DoubleSide,
 		});
-	}, [pathMaps]);
+	}, []);
 
 	return (
 		<group>
-			{/* Main Terrain */}
+			{/* Main Natural Meadow Terrain */}
 			<mesh geometry={geometry} material={terrainMaterial} receiveShadow />
 
-			{/* Curving Pathways (Zero Z-fighting) */}
+			{/* Curving Natural Earth Pathways */}
 			{pathGeometries.map((path, index) => (
 				<mesh key={index} geometry={path} material={pathMaterial} receiveShadow />
 			))}
@@ -183,10 +184,10 @@ export function Terrain({ quality = "HIGH", playerRef }: TerrainProps) {
 			{/* Dynamic Instanced Grass */}
 			<InstancedGrass quality={quality} playerRef={playerRef} distanceToPaths={distanceToPaths} />
 
-			{/* Horizon Skirt placed deep below terrain to prevent any edge flicker */}
+			{/* Horizon Skirt placed deep below terrain to prevent edge flicker */}
 			<mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, -1.8, 0]} receiveShadow>
 				<planeGeometry args={[600, 600]} />
-				<meshStandardMaterial color="#6a9e5e" roughness={0.95} />
+				<meshStandardMaterial color="#528543" roughness={1.0} metalness={0.0} />
 			</mesh>
 		</group>
 	);

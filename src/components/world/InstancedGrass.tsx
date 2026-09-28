@@ -69,8 +69,8 @@ export function InstancedGrass({ quality, playerRef, distanceToPaths }: Instance
 
 	const grassMaterial = useMemo(() => {
 		const mat = new MeshStandardMaterial({
-			roughness: 0.65,
-			metalness: 0.05,
+			roughness: 0.95,
+			metalness: 0.0,
 			side: DoubleSide,
 		});
 

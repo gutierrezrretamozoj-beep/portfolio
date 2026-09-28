@@ -137,11 +137,11 @@ function Forest({ quality, reducedMotion }: { quality: VegetationProps["quality"
 			);
 
 			shader.fragmentShader = shader.fragmentShader.replace(
-				"#include <normal_fragment_maps>",
+				"#include <color_fragment>",
 				`
-				#include <normal_fragment_maps>
-				float rim = 1.0 - max(dot(normal, vec3(0.0, 0.0, 1.0)), 0.0);
-				diffuseColor.rgb += diffuseColor.rgb * pow(rim, 3.2) * 0.18;
+				#include <color_fragment>
+				float rim = 1.0 - max(dot(geometryNormal, vec3(0.0, 0.0, 1.0)), 0.0);
+				diffuseColor.rgb += diffuseColor.rgb * pow(rim, 3.5) * 0.1;
 				`
 			);
 		};
