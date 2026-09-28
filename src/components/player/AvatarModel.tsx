@@ -3,14 +3,17 @@
 import { useFrame } from "@react-three/fiber";
 import { useEffect, useMemo, useRef, useState } from "react";
 import {
-	Color,
 	Group,
+	InstancedMesh,
 	MathUtils,
 	Mesh,
 	MeshStandardMaterial,
+	Object3D,
+	SphereGeometry,
 	Vector3,
 } from "three";
 import { useGLTF, useAnimations } from "@react-three/drei";
+import { useLayoutEffect } from "react";
 
 export type AvatarAnimationState = "idle" | "walk" | "run" | "wave";
 
@@ -35,6 +38,8 @@ function ProceduralStylizedAvatar({
 	const spineGroup = useRef<Group>(null);
 	const chestGroup = useRef<Group>(null);
 	const headGroup = useRef<Group>(null);
+	const curlMesh = useRef<InstancedMesh>(null);
+	const curlGeometry = useMemo(() => new SphereGeometry(1, 8, 7), []);
 
 	const leftArm = useRef<Group>(null);
 	const rightArm = useRef<Group>(null);
@@ -55,22 +60,22 @@ function ProceduralStylizedAvatar({
 	const materials = useMemo(() => {
 		return {
 			skin: new MeshStandardMaterial({
-				color: "#fed7aa",
+				color: "#bd805e",
 				roughness: 0.55,
 				metalness: 0.02,
 			}),
 			hair: new MeshStandardMaterial({
-				color: "#1e2229",
+				color: "#211914",
 				roughness: 0.65,
 				metalness: 0.1,
 			}),
-			hoodie: new MeshStandardMaterial({
-				color: "#c7d2fe",
+				hoodie: new MeshStandardMaterial({
+				color: "#e7ddc9",
 				roughness: 0.78,
 				metalness: 0.04,
 			}),
-			hoodieInner: new MeshStandardMaterial({
-				color: "#a5b4fc",
+				hoodieInner: new MeshStandardMaterial({
+				color: "#c9bda6",
 				roughness: 0.85,
 			}),
 			tshirt: new MeshStandardMaterial({
@@ -82,7 +87,7 @@ function ProceduralStylizedAvatar({
 				roughness: 0.5,
 			}),
 			pants: new MeshStandardMaterial({
-				color: "#334155",
+				color: "#25354a",
 				roughness: 0.88,
 				metalness: 0.05,
 			}),
@@ -114,6 +119,28 @@ function ProceduralStylizedAvatar({
 				opacity: 0.55,
 			}),
 		};
+	}, []);
+
+	useLayoutEffect(() => {
+		if (!curlMesh.current) return;
+		const transform = new Object3D();
+		const count = 56;
+		for (let index = 0; index < count; index += 1) {
+			const row = Math.floor(index / 14);
+			const column = index % 14;
+			const theta = (column / 14) * Math.PI * 2 + row * 0.17;
+			const phi = 0.38 + row * 0.31;
+			const radius = 0.235;
+			transform.position.set(
+				Math.sin(phi) * Math.cos(theta) * radius,
+				0.055 + Math.cos(phi) * radius,
+				-0.025 + Math.sin(phi) * Math.sin(theta) * radius,
+			);
+			transform.scale.setScalar(0.072 + (index % 3) * 0.004);
+			transform.updateMatrix();
+			curlMesh.current.setMatrixAt(index, transform.matrix);
+		}
+		curlMesh.current.instanceMatrix.needsUpdate = true;
 	}, []);
 
 	useFrame((_, delta) => {
@@ -298,22 +325,18 @@ function ProceduralStylizedAvatar({
 									<mesh position={[0, 0.07, -0.03]} scale={[1.08, 1.05, 1.12]} castShadow material={materials.hair}>
 										<sphereGeometry args={[0.24, 18, 16]} />
 									</mesh>
-									<mesh position={[-0.08, 0.16, 0.18]} rotation={[0.4, -0.2, -0.3]} scale={[0.09, 0.14, 0.07]} castShadow material={materials.hair}>
-										<coneGeometry args={[1, 1.2, 8]} />
-									</mesh>
-									<mesh position={[0.04, 0.17, 0.19]} rotation={[0.3, 0.15, 0.2]} scale={[0.1, 0.15, 0.08]} castShadow material={materials.hair}>
-										<coneGeometry args={[1, 1.2, 8]} />
-									</mesh>
-									<mesh position={[0.13, 0.14, 0.16]} rotation={[0.5, 0.3, 0.4]} scale={[0.08, 0.13, 0.07]} castShadow material={materials.hair}>
-										<coneGeometry args={[1, 1.2, 8]} />
-									</mesh>
-									<mesh position={[-0.24, -0.02, 0.08]} rotation={[0, 0, -0.2]} scale={[0.05, 0.15, 0.08]} castShadow material={materials.hair}>
-										<coneGeometry args={[1, 1.2, 6]} />
-									</mesh>
-									<mesh position={[0.24, -0.02, 0.08]} rotation={[0, 0, 0.2]} scale={[0.05, 0.15, 0.08]} castShadow material={materials.hair}>
-										<coneGeometry args={[1, 1.2, 6]} />
-									</mesh>
+									<instancedMesh ref={curlMesh} args={[curlGeometry, materials.hair, 56]} castShadow>
+									</instancedMesh>
 								</group>
+									<mesh position={[-0.08, 0.105, 0.222]} rotation={[0, 0, 0.12]} material={materials.hair} scale={[0.09, 0.018, 0.018]}>
+										<sphereGeometry args={[1, 10, 8]} />
+									</mesh>
+									<mesh position={[0.08, 0.105, 0.222]} rotation={[0, 0, -0.12]} material={materials.hair} scale={[0.09, 0.018, 0.018]}>
+										<sphereGeometry args={[1, 10, 8]} />
+									</mesh>
+									<mesh position={[0, -0.015, 0.235]} material={materials.skin} scale={[0.025, 0.035, 0.02]}>
+										<sphereGeometry args={[1, 10, 8]} />
+									</mesh>
 							</group>
 						</group>
 
