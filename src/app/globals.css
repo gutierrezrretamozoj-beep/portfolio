@@ -936,7 +936,10 @@ html:has(.world-experience), body:has(.world-experience) { width: 100%; height: 
   .world-control-hint > div:nth-of-type(2), .world-control-hint .hint-divider, .world-control-hint .hint-key { display: none; }
   .world-world-note { display: none; }
   .world-nearby { right: 12px; bottom: 144px; left: 12px; width: auto; min-width: 0; transform: none; }
-  .mobile-controls { position: absolute; right: 0; bottom: 0; left: 0; height: 205px; display: block; pointer-events: none; }
+  .mobile-controls { position: absolute; right: 0; bottom: 0; left: 0; height: 205px; display: none; pointer-events: none; }
+  @media (pointer: coarse) {
+    .mobile-controls { display: block; }
+  }
   .virtual-stick { position: absolute; bottom: 19px; left: 19px; width: 116px; height: 116px; display: grid; place-items: center; border: 1px solid rgba(255,255,255,.72); border-radius: 50%; background: rgba(248,251,255,.22); pointer-events: auto; touch-action: none; }
   .stick-track { position: absolute; inset: 23px; border: 1px solid rgba(81,117,126,.25); border-radius: 50%; }
   .stick-knob { position: absolute; width: 43px; height: 43px; border: 1px solid rgba(255,255,255,.85); border-radius: 50%; background: rgba(248,251,255,.76); box-shadow: 0 3px 13px rgba(39,48,68,.14); }
