@@ -4,7 +4,7 @@ export function WorldLoadingScreen({ hidden }: { hidden: boolean }) {
 			<div className="loader-orbit" aria-hidden="true"><span /><span /><span /></div>
 			<p className="loader-title">DAVID&apos;S WORLD</p>
 			<p className="loader-subtitle">Curious by nature, developer by passion.</p>
-			<div className="loader-progress" role="progressbar" aria-label="Loading world" aria-valuemin={0} aria-valuemax={100} aria-valuenow={hidden ? 100 : 68}><span /></div>
+			<div className="loader-progress" role="progressbar" aria-label="Loading world"><span /></div>
 			<p className="loader-status">Loading world...</p>
 		</div>
 	);

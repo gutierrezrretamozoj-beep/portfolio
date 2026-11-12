@@ -19,6 +19,9 @@
 
 # production
 /build
+/dist
+/dist-ssr
+/.vite
 
 # misc
 .DS_Store
@@ -39,3 +42,6 @@ yarn-error.log*
 # typescript
 *.tsbuildinfo
 next-env.d.ts
+
+# local scratch
+/scratch

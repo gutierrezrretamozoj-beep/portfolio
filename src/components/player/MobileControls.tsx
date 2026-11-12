@@ -1,18 +1,30 @@
 "use client";
 
-import { useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { WorldInput } from "@/types/world";
 
 type MobileControlsProps = {
 	inputRef: { current: WorldInput };
 	onExplore: () => void;
 	canExplore: boolean;
+	disabled: boolean;
 };
 
-export function MobileControls({ inputRef, onExplore, canExplore }: MobileControlsProps) {
+export function MobileControls({ inputRef, onExplore, canExplore, disabled }: MobileControlsProps) {
 	const [stick, setStick] = useState({ x: 0, y: 0 });
 	const stickPointer = useRef<number | null>(null);
 	const lookPointer = useRef<{ id: number; x: number; y: number } | null>(null);
+
+	useEffect(() => {
+		if (!disabled) return;
+		stickPointer.current = null;
+		lookPointer.current = null;
+		inputRef.current.moveX = 0;
+		inputRef.current.moveZ = 0;
+		inputRef.current.lookX = 0;
+		inputRef.current.lookY = 0;
+		setStick({ x: 0, y: 0 });
+	}, [disabled, inputRef]);
 
 	function updateStick(event: React.PointerEvent<HTMLDivElement>) {
 		const bounds = event.currentTarget.getBoundingClientRect();
@@ -41,8 +53,8 @@ export function MobileControls({ inputRef, onExplore, canExplore }: MobileContro
 				className="virtual-stick"
 				role="group"
 				aria-label="Movement joystick"
-				onPointerDown={(event) => { event.preventDefault(); event.currentTarget.setPointerCapture(event.pointerId); stickPointer.current = event.pointerId; updateStick(event); }}
-				onPointerMove={(event) => { if (stickPointer.current === event.pointerId) updateStick(event); }}
+				onPointerDown={(event) => { if (disabled) return; event.preventDefault(); event.currentTarget.setPointerCapture(event.pointerId); stickPointer.current = event.pointerId; updateStick(event); }}
+				onPointerMove={(event) => { if (!disabled && stickPointer.current === event.pointerId) updateStick(event); }}
 				onPointerUp={resetStick}
 				onPointerCancel={resetStick}
 			>
@@ -51,7 +63,7 @@ export function MobileControls({ inputRef, onExplore, canExplore }: MobileContro
 			<div
 				className="mobile-look-area"
 				aria-label="Drag here to look around"
-				onPointerDown={(event) => { event.preventDefault(); event.currentTarget.setPointerCapture(event.pointerId); lookPointer.current = { id: event.pointerId, x: event.clientX, y: event.clientY }; }}
+				onPointerDown={(event) => { if (disabled) return; event.preventDefault(); event.currentTarget.setPointerCapture(event.pointerId); lookPointer.current = { id: event.pointerId, x: event.clientX, y: event.clientY }; }}
 				onPointerMove={(event) => {
 					const pointer = lookPointer.current;
 					if (!pointer || pointer.id !== event.pointerId) return;
@@ -63,7 +75,7 @@ export function MobileControls({ inputRef, onExplore, canExplore }: MobileContro
 				onPointerUp={() => { lookPointer.current = null; }}
 				onPointerCancel={() => { lookPointer.current = null; }}
 			/>
-			<button className="mobile-explore" type="button" onClick={onExplore} disabled={!canExplore}>E</button>
+			<button className="mobile-explore" type="button" onClick={onExplore} disabled={!canExplore || disabled}>E</button>
 			<span className="mobile-look-label">DRAG TO LOOK</span>
 		</div>
 	);

@@ -5,7 +5,6 @@ import { useFrame } from "@react-three/fiber";
 import { useReducedMotion } from "motion/react";
 import {
 	Color,
-	ConeGeometry,
 	CylinderGeometry,
 	DodecahedronGeometry,
 	DoubleSide,
@@ -14,10 +13,28 @@ import {
 	InstancedMesh,
 	MeshStandardMaterial,
 	Object3D,
+	Shape,
+	ShapeGeometry,
+	SphereGeometry,
 	Vector2,
 } from "three";
+
+const SHARED_FLOWER_SPHERE_GEO = new SphereGeometry(1, 10, 8);
+const SHARED_FLOWER_PLANTER_MAT = new MeshStandardMaterial({ color: "#8ba180", roughness: 0.88 });
+const SHARED_FLOWER_SOIL_MAT = new MeshStandardMaterial({ color: "#4a3f32", roughness: 0.92 });
+const SHARED_FLOWER_STAKE_MAT = new MeshStandardMaterial({ color: "#856142", roughness: 0.8 });
+const SHARED_FLOWER_LABEL_MAT = new MeshStandardMaterial({ color: "#fef9ee", roughness: 0.7 });
+const SHARED_FLOWER_STEM_MAT = new MeshStandardMaterial({ color: "#5a8c54", roughness: 0.7 });
+const SHARED_FLOWER_LEAF_MAT = new MeshStandardMaterial({ color: "#7cb872", roughness: 0.65 });
+const SHARED_FLOWER_CORE_MAT = new MeshStandardMaterial({
+	color: "#fef08a",
+	emissive: "#fde047",
+	emissiveIntensity: 0.85,
+	roughness: 0.25,
+});
 import { treePositions, worldPoints } from "@/data/world";
-import { terrainHeight } from "@/components/world/terrain-utils";
+import { distanceToPaths, terrainHeight } from "@/components/world/terrain-utils";
+import { rockPositions } from "@/components/world/world-colliders";
 import { createProceduralSurfaceMaps } from "@/components/world/procedural-surface";
 import type { WorldPoint } from "@/types/world";
 
@@ -25,14 +42,6 @@ type VegetationProps = {
 	quality: "LOW" | "MEDIUM" | "HIGH";
 	onActivate: (pointId: string) => void;
 };
-
-const foliagePalettes = [
-	{ base: "#416e3c", mid: "#6fa754", tip: "#a6d66e" },
-	{ base: "#376246", mid: "#57956a", tip: "#8fd59b" },
-	{ base: "#596e38", mid: "#88a34b", tip: "#c8df72" },
-	{ base: "#526b4b", mid: "#829a65", tip: "#b7c987" },
-	{ base: "#426854", mid: "#69937a", tip: "#a5c8a6" },
-];
 
 const flowerColors = [
 	"#efb8cf",
@@ -44,75 +53,37 @@ const flowerColors = [
 	"#c9c2e6",
 ];
 
-function createStylizedCanopyGeometry(radius: number, detail: number) {
-	const geometry = new IcosahedronGeometry(radius, detail);
-	const positions = geometry.attributes.position;
-	const normals = geometry.attributes.normal;
-
-	for (let i = 0; i < positions.count; i++) {
-		const x = positions.getX(i);
-		const y = positions.getY(i);
-		const z = positions.getZ(i);
-
-		const noise = 1.0 + Math.sin(x * 3.5 + y * 2.2) * 0.12 + Math.cos(z * 3.1 - y * 2.8) * 0.08;
-		positions.setXYZ(i, x * noise, y * (noise * 0.9 + 0.1), z * noise);
-	}
-
-	geometry.computeVertexNormals();
-
-	for (let i = 0; i < normals.count; i++) {
-		const nx = positions.getX(i);
-		const ny = positions.getY(i) * 0.8;
-		const nz = positions.getZ(i);
-		const len = Math.hypot(nx, ny, nz) || 1;
-		normals.setXYZ(i, nx / len, ny / len, nz / len);
-	}
-
-	return geometry;
-}
-
-function createTrunkGeometry() {
-	const geometry = new CylinderGeometry(0.18, 0.42, 2.2, 8, 4);
-	const positions = geometry.attributes.position;
-
-	for (let i = 0; i < positions.count; i++) {
-		const x = positions.getX(i);
-		const y = positions.getY(i);
-		const z = positions.getZ(i);
-
-		const rootFactor = Math.max(0, -y - 0.4) * 0.55;
-		const angle = Math.atan2(z, x);
-		const flare = 1.0 + rootFactor * (1.0 + Math.cos(angle * 4.0) * 0.4);
-
-		positions.setXYZ(i, x * flare, y, z * flare);
-	}
-
-	geometry.computeVertexNormals();
-	return geometry;
-}
+import {
+	createCloudCanopyGeometry,
+	createSculptedTrunkGeometry,
+	createTieredAlpinePineGeometry,
+} from "@/components/world/tree-geometries";
 
 function Forest({ quality, reducedMotion }: { quality: VegetationProps["quality"]; reducedMotion: boolean }) {
-	const count = quality === "LOW" ? 22 : quality === "MEDIUM" ? 34 : treePositions.length;
+	const count = quality === "LOW" ? Math.min(22, treePositions.length) : treePositions.length;
 	const trees = useMemo(() => treePositions.slice(0, count), [count]);
 
 	const trunks = useRef<InstancedMesh>(null);
-	const mainCanopies = useRef<InstancedMesh>(null);
-	const subCanopies = useRef<InstancedMesh>(null);
 	const pines = useRef<InstancedMesh>(null);
+	const canopies = useRef<InstancedMesh>(null);
 
-	const trunkGeometry = useMemo(() => createTrunkGeometry(), []);
-	const mainCrownGeom = useMemo(() => createStylizedCanopyGeometry(1.4, 2), []);
-	const subCrownGeom = useMemo(() => createStylizedCanopyGeometry(1.0, 2), []);
-	const pineGeometry = useMemo(() => new ConeGeometry(1.3, 2.4, 8, 2), []);
+	const trunkGeometry = useMemo(() => createSculptedTrunkGeometry(), []);
+	const pineCrownGeom = useMemo(() => createTieredAlpinePineGeometry(), []);
+	const deciduousCrownGeom = useMemo(() => createCloudCanopyGeometry(), []);
 
 	const windTime = useMemo(() => ({ value: 0 }), []);
 
+	const foliageMaps = useMemo(() => createProceduralSurfaceMaps(37, 128, [2, 2]), []);
+
 	const foliageMaterial = useMemo(() => {
 		const material = new MeshStandardMaterial({
-			roughness: 0.72,
-			metalness: 0.04,
-			vertexColors: true,
+			roughness: 0.76,
+			metalness: 0.02,
 			side: DoubleSide,
+			vertexColors: true,
+			normalMap: foliageMaps.normalMap,
+			roughnessMap: foliageMaps.roughnessMap,
+			normalScale: new Vector2(0.18, 0.18),
 		});
 
 		material.onBeforeCompile = (shader) => {
@@ -137,90 +108,104 @@ function Forest({ quality, reducedMotion }: { quality: VegetationProps["quality"
 			);
 
 			shader.fragmentShader = shader.fragmentShader.replace(
-				"#include <color_fragment>",
+				"#include <normal_fragment_maps>",
 				`
-				#include <color_fragment>
-				float rim = 1.0 - max(dot(geometryNormal, vec3(0.0, 0.0, 1.0)), 0.0);
-				diffuseColor.rgb += diffuseColor.rgb * pow(rim, 3.5) * 0.1;
+				#include <normal_fragment_maps>
+				float rim = 1.0 - max(dot(normal, vec3(0.0, 0.0, 1.0)), 0.0);
+				diffuseColor.rgb += diffuseColor.rgb * pow(rim, 3.5) * 0.08;
 				`
 			);
 		};
 
-		material.customProgramCacheKey = () => "stylized-ghibli-foliage-v2";
+		material.customProgramCacheKey = () => "stylized-ghibli-foliage-v4";
 		return material;
-	}, [windTime]);
+	}, [windTime, foliageMaps]);
 
 	const barkMaps = useMemo(() => createProceduralSurfaceMaps(15, 128, [1, 3]), []);
 	const barkMaterial = useMemo(() => {
 		return new MeshStandardMaterial({
-			color: "#755239",
+			color: "#5c4028",
 			roughness: 0.92,
 			metalness: 0.02,
+			vertexColors: true,
 			normalMap: barkMaps.normalMap,
 			roughnessMap: barkMaps.roughnessMap,
 			normalScale: new Vector2(0.16, 0.36),
 		});
 	}, [barkMaps]);
 
-	useLayoutEffect(() => {
-		if (!trunks.current || !mainCanopies.current || !subCanopies.current || !pines.current) return;
+	// Categorize trees into pines vs deciduous
+	const { pineTreeData, deciduousTreeData } = useMemo(() => {
+		const pineList: Array<{ x: number; y: number; z: number; scale: number; rotY: number; color: string; treeIdx: number }> = [];
+		const decList: Array<{ x: number; y: number; z: number; scale: number; rotY: number; color: string; treeIdx: number }> = [];
 
-		const transform = new Object3D();
-		const color = new Color();
-		let mainIndex = 0;
-		let subIndex = 0;
-		let pineIndex = 0;
+		// Unified Alpine Valley Forest Palette:
+		// Stately mountain pines & lush temperate oaks and maples with natural green tonal depth
+		const pinePalette = ["#1a4325", "#23502d", "#2d5e37", "#1e3f26", "#284f30"];
+		const deciduousPalette = ["#2d5e35", "#386b40", "#467c4e", "#548d5d", "#33643c", "#417349"];
 
 		trees.forEach(([x, , z, scale], index) => {
 			const ground = terrainHeight(x, z);
-			const palette = foliagePalettes[index % foliagePalettes.length];
+			const rotY = (index * 0.72) % (Math.PI * 2);
 
-			transform.position.set(x, ground + scale * 1.05, z);
+			// Pines on north ridge, lake perimeter, and interspersed naturally throughout the woodland
+			const isPine = z < -18 || (x < -16 && z < -4) || (index % 3 === 0);
+
+			if (isPine) {
+				const col = pinePalette[index % pinePalette.length];
+				pineList.push({ x, y: ground, z, scale, rotY, color: col, treeIdx: index });
+			} else {
+				const col = deciduousPalette[index % deciduousPalette.length];
+				decList.push({ x, y: ground, z, scale, rotY, color: col, treeIdx: index });
+			}
+		});
+
+		return { pineTreeData: pineList, deciduousTreeData: decList };
+	}, [trees]);
+
+	useLayoutEffect(() => {
+		if (!trunks.current || !pines.current || !canopies.current) return;
+
+		const transform = new Object3D();
+		const color = new Color();
+
+		// Set trunks for all trees (ground-aligned base at y = 0)
+		trees.forEach(([x, , z, scale], index) => {
+			const ground = terrainHeight(x, z);
+			transform.position.set(x, ground, z);
 			transform.rotation.set(0, (index * 0.72) % (Math.PI * 2), 0);
 			transform.scale.set(scale, scale, scale);
 			transform.updateMatrix();
 			trunks.current?.setMatrixAt(index, transform.matrix);
-
-			if (index % 4 === 0) {
-				transform.position.set(x, ground + scale * 2.35, z);
-				transform.scale.set(scale * 1.05, scale * 1.55, scale * 1.05);
-				transform.rotation.set(0, index * 0.45, 0);
-				transform.updateMatrix();
-				pines.current?.setMatrixAt(pineIndex, transform.matrix);
-				pines.current?.setColorAt(pineIndex, color.set(palette.mid));
-				pineIndex++;
-				return;
-			}
-
-			transform.position.set(x, ground + scale * 2.45, z);
-			transform.rotation.set(0.1, index * 0.6, -0.05);
-			transform.scale.set(scale * 1.15, scale * 1.1, scale * 1.15);
-			transform.updateMatrix();
-			mainCanopies.current?.setMatrixAt(mainIndex, transform.matrix);
-			mainCanopies.current?.setColorAt(mainIndex, color.set(palette.tip));
-			mainIndex++;
-
-			const angle = index * 1.1;
-			const lobeOffsetX = Math.cos(angle) * (scale * 0.55);
-			const lobeOffsetZ = Math.sin(angle) * (scale * 0.55);
-			transform.position.set(x + lobeOffsetX, ground + scale * 2.15, z + lobeOffsetZ);
-			transform.rotation.set(-0.15, index * 0.8, 0.1);
-			transform.scale.set(scale * 0.95, scale * 0.95, scale * 0.95);
-			transform.updateMatrix();
-			subCanopies.current?.setMatrixAt(subIndex, transform.matrix);
-			subCanopies.current?.setColorAt(subIndex, color.set(palette.mid));
-			subIndex++;
 		});
-
 		trunks.current.instanceMatrix.needsUpdate = true;
-		mainCanopies.current.instanceMatrix.needsUpdate = true;
-		subCanopies.current.instanceMatrix.needsUpdate = true;
-		pines.current.instanceMatrix.needsUpdate = true;
 
-		if (mainCanopies.current.instanceColor) mainCanopies.current.instanceColor.needsUpdate = true;
-		if (subCanopies.current.instanceColor) subCanopies.current.instanceColor.needsUpdate = true;
+		// Set Tiered Alpine Pine Foliage (ground-aligned, sits directly on trunk)
+		pineTreeData.forEach((t, i) => {
+			transform.position.set(t.x, t.y, t.z);
+			transform.rotation.set(0, t.rotY, 0);
+			transform.scale.set(t.scale, t.scale, t.scale);
+			transform.updateMatrix();
+			pines.current?.setMatrixAt(i, transform.matrix);
+			color.set(t.color);
+			pines.current?.setColorAt(i, color);
+		});
+		pines.current.instanceMatrix.needsUpdate = true;
 		if (pines.current.instanceColor) pines.current.instanceColor.needsUpdate = true;
-	}, [trees]);
+
+		// Set Cloud-Puffed Deciduous Foliage (ground-aligned, rests directly on branches)
+		deciduousTreeData.forEach((t, i) => {
+			transform.position.set(t.x, t.y, t.z);
+			transform.rotation.set(0, t.rotY, 0);
+			transform.scale.set(t.scale, t.scale, t.scale);
+			transform.updateMatrix();
+			canopies.current?.setMatrixAt(i, transform.matrix);
+			color.set(t.color);
+			canopies.current?.setColorAt(i, color);
+		});
+		canopies.current.instanceMatrix.needsUpdate = true;
+		if (canopies.current.instanceColor) canopies.current.instanceColor.needsUpdate = true;
+	}, [trees, pineTreeData, deciduousTreeData]);
 
 	useFrame(({ clock }) => {
 		if (reducedMotion) return;
@@ -229,30 +214,20 @@ function Forest({ quality, reducedMotion }: { quality: VegetationProps["quality"
 
 	return (
 		<group>
+			{/* Sculpted Trunks with Flared Root Base */}
 			<instancedMesh ref={trunks} args={[trunkGeometry, barkMaterial, trees.length]} castShadow receiveShadow />
-			<instancedMesh ref={mainCanopies} args={[mainCrownGeom, foliageMaterial, trees.length]} castShadow receiveShadow />
-			<instancedMesh ref={subCanopies} args={[subCrownGeom, foliageMaterial, trees.length]} castShadow receiveShadow />
-			<instancedMesh ref={pines} args={[pineGeometry, foliageMaterial, Math.max(1, Math.ceil(trees.length / 4))]} castShadow receiveShadow />
+
+			{/* Tiered Alpine Pines */}
+			<instancedMesh ref={pines} args={[pineCrownGeom, foliageMaterial, Math.max(1, pineTreeData.length)]} castShadow receiveShadow />
+
+			{/* Cloud-Puffed Deciduous Crowns (Oak, Birch, Sakura) */}
+			<instancedMesh ref={canopies} args={[deciduousCrownGeom, foliageMaterial, Math.max(1, deciduousTreeData.length)]} castShadow receiveShadow />
 		</group>
 	);
 }
 
-const rockPositions: [number, number, number, number][] = [
-	[-27, -2.7, 0.7, 1.2], [-25, -3.4, 0.45, 0.8], [-19, -2.1, 0.55, 1],
-	[-12, -3.5, 0.5, 0.8], [-7, -2.3, 0.42, 0.9], [7, -3.1, 0.55, 1.1],
-	[13, -1.8, 0.5, 0.85], [18, -3.3, 0.6, 1.1], [25, -1.9, 0.47, 0.8],
-	[-5, -24.4, 0.36, 0.7], [4, -25, 0.32, 0.66], [-7, -28, 0.4, 0.75],
-	[8, -29, 0.44, 0.84], [-6, -32, 0.48, 0.9], [6, -33, 0.4, 0.72],
-];
-
-export const worldColliders = [
-	...treePositions.map(([x, , z, scale]) => ({ x, z, radius: 0.62 + scale * 0.3 })),
-	{ x: 10, z: 10, radius: 2.7 },
-	{ x: 0, z: -18, radius: 2.7 },
-	...rockPositions.map(([x, z, , scale]) => ({ x, z, radius: scale * 0.6 })),
-];
-
 function StylizedRocks() {
+	const meshRef = useRef<InstancedMesh>(null);
 	const rockGeometry = useMemo(() => {
 		const geom = new DodecahedronGeometry(1, 1);
 		const pos = geom.attributes.position;
@@ -279,30 +254,36 @@ function StylizedRocks() {
 		});
 	}, [stoneMaps]);
 
+	useLayoutEffect(() => {
+		const mesh = meshRef.current;
+		if (!mesh) return;
+		const dummy = new Object3D();
+		rockPositions.forEach(([x, z, height, scale], index) => {
+			const y = terrainHeight(x, z) + height * 0.35;
+			dummy.position.set(x, y, z);
+			dummy.scale.set(scale * 1.2, height * 1.1, scale * 1.0);
+			dummy.rotation.set(0.15, index * 0.95, -0.1);
+			dummy.updateMatrix();
+			mesh.setMatrixAt(index, dummy.matrix);
+		});
+		mesh.instanceMatrix.needsUpdate = true;
+	}, []);
+
 	return (
-		<group>
-			{rockPositions.map(([x, z, height, scale], index) => {
-				const y = terrainHeight(x, z) + height * 0.35;
-				return (
-					<mesh
-						key={index}
-						geometry={rockGeometry}
-						material={stoneMaterial}
-						position={[x, y, z]}
-						scale={[scale * 1.2, height * 1.1, scale * 1.0]}
-						rotation={[0.15, index * 0.95, -0.1]}
-						castShadow
-						receiveShadow
-					/>
-				);
-			})}
-		</group>
+		<instancedMesh
+			ref={meshRef}
+			args={[rockGeometry, stoneMaterial, rockPositions.length]}
+			castShadow
+			receiveShadow
+			frustumCulled={false}
+		/>
 	);
 }
 
 function Shrubs({ quality }: { quality: VegetationProps["quality"] }) {
+	const meshRef = useRef<InstancedMesh>(null);
 	const shrubCount = quality === "LOW" ? 12 : 28;
-	const shrubGeom = useMemo(() => createStylizedCanopyGeometry(0.75, 1), []);
+	const shrubGeom = useMemo(() => new IcosahedronGeometry(0.75, 1), []);
 	const shrubMat = useMemo(() => {
 		return new MeshStandardMaterial({
 			color: "#6b9c52",
@@ -326,20 +307,28 @@ function Shrubs({ quality }: { quality: VegetationProps["quality"] }) {
 		return positions;
 	}, [shrubCount]);
 
+	useLayoutEffect(() => {
+		const mesh = meshRef.current;
+		if (!mesh) return;
+		const dummy = new Object3D();
+		shrubInstances.forEach(([x, y, z, scale], i) => {
+			dummy.position.set(x, y, z);
+			dummy.scale.set(scale * 1.1, scale * 0.85, scale * 1.0);
+			dummy.rotation.set(0, i * 0.7, 0);
+			dummy.updateMatrix();
+			mesh.setMatrixAt(i, dummy.matrix);
+		});
+		mesh.instanceMatrix.needsUpdate = true;
+	}, [shrubInstances]);
+
 	return (
-		<group>
-			{shrubInstances.map(([x, y, z, scale], i) => (
-				<mesh
-					key={i}
-					geometry={shrubGeom}
-					material={shrubMat}
-					position={[x, y, z]}
-					scale={[scale * 1.1, scale * 0.85, scale * 1.0]}
-					castShadow
-					receiveShadow
-				/>
-			))}
-		</group>
+		<instancedMesh
+			ref={meshRef}
+			args={[shrubGeom, shrubMat, shrubInstances.length]}
+			castShadow
+			receiveShadow
+			frustumCulled={false}
+		/>
 	);
 }
 
@@ -381,19 +370,43 @@ function Flower({
 				document.body.style.cursor = "";
 			}}
 		>
-			<mesh position={[0, 0.42, 0]} castShadow>
-				<cylinderGeometry args={[0.025, 0.045, 0.85, 8]} />
-				<meshStandardMaterial color="#5a8c54" roughness={0.7} />
+			{/* Ground stone planter border */}
+			<mesh position={[0, 0.05, 0]} material={SHARED_FLOWER_PLANTER_MAT} castShadow receiveShadow>
+				<cylinderGeometry args={[0.38, 0.44, 0.1, 10]} />
+			</mesh>
+			<mesh position={[0, 0.09, 0]} material={SHARED_FLOWER_SOIL_MAT}>
+				<cylinderGeometry args={[0.33, 0.33, 0.04, 10]} />
+			</mesh>
+			{/* Wooden garden label stake */}
+			<mesh position={[0.26, 0.18, 0.18]} material={SHARED_FLOWER_STAKE_MAT} castShadow>
+				<cylinderGeometry args={[0.018, 0.018, 0.36, 6]} />
+			</mesh>
+			<mesh position={[0.26, 0.34, 0.18]} rotation={[0, -0.4, 0]} material={SHARED_FLOWER_LABEL_MAT}>
+				<boxGeometry args={[0.28, 0.14, 0.03]} />
+			</mesh>
+			<mesh position={[0.26, 0.34, 0.2]}>
+				<boxGeometry args={[0.08, 0.04, 0.01]} />
+				<meshStandardMaterial color={petalColor} roughness={0.5} />
 			</mesh>
 
-			<mesh position={[0.12, 0.32, 0]} rotation={[0, 0, -0.6]} scale={[0.24, 0.09, 0.035]}>
-				<sphereGeometry args={[1, 10, 8]} />
-				<meshStandardMaterial color="#7cb872" roughness={0.65} />
+			<mesh position={[0, 0.42, 0]} material={SHARED_FLOWER_STEM_MAT} castShadow>
+				<cylinderGeometry args={[0.025, 0.045, 0.85, 8]} />
 			</mesh>
-			<mesh position={[-0.1, 0.45, 0.05]} rotation={[0, 0, 0.6]} scale={[0.2, 0.08, 0.035]}>
-				<sphereGeometry args={[1, 10, 8]} />
-				<meshStandardMaterial color="#7cb872" roughness={0.65} />
-			</mesh>
+
+			<mesh
+				position={[0.12, 0.32, 0]}
+				rotation={[0, 0, -0.6]}
+				scale={[0.24, 0.09, 0.035]}
+				geometry={SHARED_FLOWER_SPHERE_GEO}
+				material={SHARED_FLOWER_LEAF_MAT}
+			/>
+			<mesh
+				position={[-0.1, 0.45, 0.05]}
+				rotation={[0, 0, 0.6]}
+				scale={[0.2, 0.08, 0.035]}
+				geometry={SHARED_FLOWER_SPHERE_GEO}
+				material={SHARED_FLOWER_LEAF_MAT}
+			/>
 
 			<group position={[0, 0.86, 0]}>
 				{Array.from({ length: 6 }, (_, petal) => {
@@ -404,23 +417,181 @@ function Flower({
 							position={[Math.sin(angle) * 0.16, 0.02, Math.cos(angle) * 0.16]}
 							rotation={[0.2, angle, 0]}
 							scale={[0.12, 0.08, 0.22]}
+							geometry={SHARED_FLOWER_SPHERE_GEO}
 							castShadow
 						>
-							<sphereGeometry args={[1, 12, 10]} />
 							<meshStandardMaterial color={petalColor} roughness={0.48} metalness={0.05} />
 						</mesh>
 					);
 				})}
-				<mesh scale={0.12} castShadow>
-					<sphereGeometry args={[1, 12, 10]} />
-					<meshStandardMaterial
-						color="#fde047"
-						emissive="#fde047"
-						emissiveIntensity={0.25}
-						roughness={0.4}
-					/>
-				</mesh>
+				<mesh scale={0.14} geometry={SHARED_FLOWER_SPHERE_GEO} material={SHARED_FLOWER_CORE_MAT} castShadow />
 			</group>
+		</group>
+	);
+}
+
+function WildflowerMeadow({ quality }: { quality: VegetationProps["quality"] }) {
+	const stemMesh = useRef<InstancedMesh>(null);
+	const bloomMesh = useRef<InstancedMesh>(null);
+	const centerMesh = useRef<InstancedMesh>(null);
+	const count = quality === "LOW" ? 48 : quality === "MEDIUM" ? 84 : 120;
+	const stemGeometry = useMemo(() => new CylinderGeometry(0.008, 0.014, 1, 5), []);
+	const bloomGeometry = useMemo(() => {
+		const shape = new Shape();
+		for (let vertex = 0; vertex < 10; vertex += 1) {
+			const angle = (vertex / 10) * Math.PI * 2 - Math.PI / 2;
+			const radius = vertex % 2 === 0 ? 0.11 : 0.055;
+			const x = Math.cos(angle) * radius;
+			const y = Math.sin(angle) * radius;
+			if (vertex === 0) shape.moveTo(x, y);
+			else shape.lineTo(x, y);
+		}
+		shape.closePath();
+		const geometry = new ShapeGeometry(shape);
+		geometry.rotateX(-Math.PI / 2);
+		geometry.computeVertexNormals();
+		return geometry;
+	}, []);
+	const centerGeometry = useMemo(() => new IcosahedronGeometry(0.035, 0), []);
+	const stemMaterial = useMemo(() => new MeshStandardMaterial({ color: "#4e7745", roughness: 0.9 }), []);
+	const bloomMaterial = useMemo(() => new MeshStandardMaterial({ color: "#ffffff", side: DoubleSide, roughness: 0.82 }), []);
+	const centerMaterial = useMemo(() => new MeshStandardMaterial({ color: "#e8c967", roughness: 0.78 }), []);
+
+	const flowerField = useMemo(() => {
+		const patches: [number, number][] = [
+			[-17, 7], [-17, -21], [18, 8], [18, -20], [-7, 20], [7, -30],
+		];
+		const stems: number[] = [];
+		const blooms: number[] = [];
+		const centers: number[] = [];
+		const colors: string[] = [];
+		const transform = new Object3D();
+
+		for (let index = 0; index < count; index += 1) {
+			const patchIndex = index % patches.length;
+			const flowerIndex = Math.floor(index / patches.length);
+			const angle = flowerIndex * 2.399963 + patchIndex * 0.51;
+			const radius = 0.45 + Math.sqrt(flowerIndex + 0.5) * 0.18;
+			const x = patches[patchIndex][0] + Math.cos(angle) * radius + Math.sin(index * 12.9) * 0.12;
+			const z = patches[patchIndex][1] + Math.sin(angle) * radius + Math.cos(index * 7.2) * 0.12;
+			const riverCenter = -2.5 + Math.sin(x * 0.13) * 0.75;
+			if (distanceToPaths(x, z) < 1.5 || Math.abs(z - riverCenter) < 3.2) continue;
+
+			const ground = terrainHeight(x, z);
+			const stemHeight = 0.2 + (index % 5) * 0.035;
+			transform.position.set(x, ground + stemHeight * 0.5, z);
+			transform.rotation.set(0, angle * 0.2, Math.sin(index * 0.8) * 0.1);
+			transform.scale.set(1, stemHeight, 1);
+			transform.updateMatrix();
+			stems.push(...transform.matrix.elements);
+
+			const flowerScale = 0.52 + (index % 4) * 0.055;
+			transform.position.set(x, ground + stemHeight, z);
+			transform.rotation.set(0, angle, 0);
+			transform.scale.setScalar(flowerScale);
+			transform.updateMatrix();
+			blooms.push(...transform.matrix.elements);
+
+			transform.position.y += 0.008;
+			transform.scale.setScalar(0.2);
+			transform.updateMatrix();
+			centers.push(...transform.matrix.elements);
+			colors.push(flowerColors[(index + patchIndex * 2) % flowerColors.length]);
+		}
+
+		return {
+			stems: new Float32Array(stems),
+			blooms: new Float32Array(blooms),
+			centers: new Float32Array(centers),
+			colors,
+		};
+	}, [count]);
+
+	useLayoutEffect(() => {
+		if (!stemMesh.current || !bloomMesh.current || !centerMesh.current) return;
+		const flowerCount = flowerField.colors.length;
+
+		for (let index = 0; index < flowerCount; index += 1) {
+			const offset = index * 16;
+			stemMesh.current.instanceMatrix.array.set(flowerField.stems.subarray(offset, offset + 16), offset);
+			bloomMesh.current.instanceMatrix.array.set(flowerField.blooms.subarray(offset, offset + 16), offset);
+			centerMesh.current.instanceMatrix.array.set(flowerField.centers.subarray(offset, offset + 16), offset);
+			bloomMesh.current.setColorAt(index, new Color(flowerField.colors[index]));
+		}
+
+		stemMesh.current.instanceMatrix.needsUpdate = true;
+		bloomMesh.current.instanceMatrix.needsUpdate = true;
+		centerMesh.current.instanceMatrix.needsUpdate = true;
+		if (bloomMesh.current.instanceColor) bloomMesh.current.instanceColor.needsUpdate = true;
+	}, [flowerField]);
+
+	const flowerCount = flowerField.colors.length;
+	if (!flowerCount) return null;
+
+	return (
+		<group>
+			<instancedMesh ref={stemMesh} args={[stemGeometry, stemMaterial, flowerCount]} />
+			<instancedMesh ref={bloomMesh} args={[bloomGeometry, bloomMaterial, flowerCount]} />
+			<instancedMesh ref={centerMesh} args={[centerGeometry, centerMaterial, flowerCount]} />
+		</group>
+	);
+}
+
+function FairyMushrooms() {
+	const stalkMeshRef = useRef<InstancedMesh>(null);
+	const capMeshRef = useRef<InstancedMesh>(null);
+
+	const mushrooms = useMemo(() => [
+		{ x: -16.5, z: 12.8, scale: 0.32, color: "#f87171" },
+		{ x: -16.2, z: 13.2, scale: 0.24, color: "#38bdf8" },
+		{ x: -16.8, z: 13.0, scale: 0.18, color: "#f87171" },
+		{ x: 17.5, z: -18.2, scale: 0.35, color: "#38bdf8" },
+		{ x: 17.2, z: -17.8, scale: 0.22, color: "#c084fc" },
+		{ x: 17.8, z: -18.5, scale: 0.28, color: "#f87171" },
+		{ x: -8.0, z: -22.5, scale: 0.3, color: "#c084fc" },
+		{ x: -7.6, z: -22.8, scale: 0.2, color: "#38bdf8" },
+		{ x: 8.5, z: 19.5, scale: 0.32, color: "#f87171" },
+		{ x: 8.8, z: 19.2, scale: 0.25, color: "#fde047" },
+	], []);
+
+	const stalkGeo = useMemo(() => new CylinderGeometry(0.15, 0.22, 0.9, 8), []);
+	const capGeo = useMemo(() => new SphereGeometry(0.55, 10, 8, 0, Math.PI * 2, 0, Math.PI * 0.55), []);
+	const stalkMat = useMemo(() => new MeshStandardMaterial({ color: "#fef9c3", roughness: 0.7 }), []);
+	const capMat = useMemo(
+		() => new MeshStandardMaterial({ color: "#ffffff", emissive: "#c4b5fd", emissiveIntensity: 0.25, roughness: 0.3 }),
+		[],
+	);
+
+	useLayoutEffect(() => {
+		const stalkMesh = stalkMeshRef.current;
+		const capMesh = capMeshRef.current;
+		if (!stalkMesh || !capMesh) return;
+		const dummy = new Object3D();
+		const color = new Color();
+
+		mushrooms.forEach((m, i) => {
+			const y = terrainHeight(m.x, m.z);
+			dummy.scale.setScalar(m.scale);
+
+			dummy.position.set(m.x, y + 0.45 * m.scale, m.z);
+			dummy.updateMatrix();
+			stalkMesh.setMatrixAt(i, dummy.matrix);
+
+			dummy.position.set(m.x, y + 0.92 * m.scale, m.z);
+			dummy.updateMatrix();
+			capMesh.setMatrixAt(i, dummy.matrix);
+			capMesh.setColorAt(i, color.set(m.color));
+		});
+
+		stalkMesh.instanceMatrix.needsUpdate = true;
+		capMesh.instanceMatrix.needsUpdate = true;
+		if (capMesh.instanceColor) capMesh.instanceColor.needsUpdate = true;
+	}, [mushrooms]);
+
+	return (
+		<group>
+			<instancedMesh ref={stalkMeshRef} args={[stalkGeo, stalkMat, mushrooms.length]} castShadow frustumCulled={false} />
+			<instancedMesh ref={capMeshRef} args={[capGeo, capMat, mushrooms.length]} castShadow frustumCulled={false} />
 		</group>
 	);
 }
@@ -434,6 +605,8 @@ export function Vegetation({ quality, onActivate }: VegetationProps) {
 			<Forest quality={quality} reducedMotion={reducedMotion} />
 			<StylizedRocks />
 			<Shrubs quality={quality} />
+			<WildflowerMeadow quality={quality} />
+			<FairyMushrooms />
 			{flowers.map((point, index) => (
 				<Flower key={point.id} point={point} index={index} onActivate={onActivate} reducedMotion={reducedMotion} />
 			))}

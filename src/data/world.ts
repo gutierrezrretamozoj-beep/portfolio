@@ -1,165 +1,202 @@
-import { digitalDna, humanSkills } from "@/data/dna";
-import { interests } from "@/data/interests";
-import { projects } from "@/data/projects";
-import { WorldPoint } from "@/types/world";
-
-const humanSkillPositions = humanSkills.map((skill, index) => {
-	const angle = (index / humanSkills.length) * Math.PI * 2;
-	return {
-		id: `human-${index}`,
-		name: skill,
-		label: skill.toUpperCase(),
-		description: `${skill} is one of the ways I help a team move forward.`,
-		position: [-10 + Math.cos(angle) * 4, 0, 10 + Math.sin(angle) * 4] as [number, number, number],
-		radius: 2.2,
-		kind: "human-skill" as const,
-		dataKey: skill,
-	};
-});
+import {
+	type Language,
+	i18nWorldPoints,
+	i18nProjects,
+	i18nHumanSkills,
+	i18nInterests,
+	i18nUI,
+} from "@/data/i18n";
+import type { WorldPoint } from "@/types/world";
 
 const projectPositions: [number, number, number][] = [
-	[-3, 0, 6],
-	[0, 0, 10],
-	[3, 0, 6],
+	[-3.8, 0, 7.2],
+	[0, 0, 5.2],
+	[3.8, 0, 7.2],
 ];
 
-const projectPoints: WorldPoint[] = projects.map((project, index) => ({
-	id: `project-${index}`,
-	name: project.name,
-	label: "PROJECT",
-	description: project.description,
-	position: projectPositions[index] ?? [0, 0, 8],
-	radius: 2.4,
-	kind: "project",
-	dataKey: project.name,
-}));
+const interestLayout: [number, number, number][] = [
+	[-4.5, 0, -14.2], // Video games
+	[-3.5, 0, -15.5], // Music
+	[-4.8, 0, -16.8], // Technology
+	[-2.0, 0, -14.6], // Cats
+	[0.0, 0, -13.5],  // Programming
+	[2.0, 0, -14.6],  // Design
+	[3.5, 0, -15.5],  // Nature
+	[4.5, 0, -14.2],  // Travel
+	[4.8, 0, -16.8],  // Cooking
+];
 
-const interestPoints: WorldPoint[] = interests.map((interest, index) => {
-	const angle = (index / interests.length) * Math.PI * 2;
-	const x = Math.cos(angle) * 5.5;
-	const z = -18 + Math.sin(angle) * 5.5;
-	return {
-		id: `interest-${index}`,
-		name: interest.name,
-		label: "BEYOND THE CODE",
-		description: `A little part of life outside the editor: ${interest.name.toLowerCase()}.`,
-		position: [x, 0, z],
-		radius: 2.3,
-		kind: "interest" as const,
-		route: [[0, 0, 1], [0, 0, -6], [x * 0.55, 0, z * 0.55]],
-		dataKey: interest.name,
-	};
-});
+export function getWorldPoints(lang: Language = "es"): WorldPoint[] {
+	const wp = i18nWorldPoints[lang];
+	const localizedProjects = i18nProjects[lang];
+	const localizedSkills = i18nHumanSkills[lang];
+	const localizedInterests = i18nInterests[lang];
 
-export const worldPoints: WorldPoint[] = [
-	{
-		id: "start",
-		name: "Curiosity",
-		label: "START HERE",
-		description: "Every path starts with a question.",
-		position: [0, 0, 20],
-		radius: 3,
-		kind: "start",
-	},
-	{
-		id: "about",
-		name: "About David",
-		label: "WHO I AM",
-		description: "Technology was always nearby. Curiosity helped me find my way into development.",
-		position: [-14, 0, -10],
-		radius: 3.1,
-		kind: "about",
-		route: [[0, 0, 1], [0, 0, -5], [-7, 0, -7]],
-	},
-	{
-		id: "dna",
-		name: "Digital DNA",
-		label: "MY DIGITAL DNA",
-		description: digitalDna.map((item) => item.name).join(" · "),
-		position: [14, 0, -10],
-		radius: 3.1,
-		kind: "dna",
-		route: [[0, 0, 1], [0, 0, -5], [7, 0, -7]],
-	},
-	{
-		id: "journey",
-		name: "My Journey",
-		label: "MY JOURNEY",
-		description: "The river marks a path from early curiosity toward a future still taking shape.",
-		position: [0, 0, -5.7],
-		radius: 3.5,
-		kind: "journey",
-		route: [[0, 0, 1], [0, 0, -4]],
-	},
-	{
-		id: "garden",
-		name: "Human Skills",
-		label: "GARDEN OF PEOPLE",
-		description: "Communication, empathy, and teamwork help good work grow.",
-		position: [-10, 0, 10],
-		radius: 3,
-		kind: "human-skill",
-	},
-	{
-		id: "skills",
-		name: "Natural Tech Lab",
-		label: "TECHNICAL SKILLS",
-		description: "The tools I use today, and the ones I am still learning.",
-		position: [10, 0, 10],
-		radius: 3.2,
-		kind: "skills",
-	},
-	{
-		id: "riwi",
-		name: "Riwi",
-		label: "WHERE I GROW",
-		description: "Projects, Scrum, presentations, and collaboration are part of my learning path.",
-		position: [12, 0, 6],
+	const humanSkillPositions: WorldPoint[] = localizedSkills.map((skill, index) => {
+		const angle = (index / localizedSkills.length) * Math.PI * 2;
+		return {
+			id: `human-${index}`,
+			name: skill.name,
+			label: lang === "es" ? "HABILIDAD HUMANA" : "HUMAN SKILL",
+			description: skill.description,
+			position: [-10 + Math.cos(angle) * 3.8, 0, 10 + Math.sin(angle) * 3.8],
+			radius: 2.0,
+			kind: "human-skill",
+			dataKey: skill.name,
+		};
+	});
+
+	const projectPoints: WorldPoint[] = localizedProjects.map((project, index) => ({
+		id: `project-${index}`,
+		name: project.name,
+		label: lang === "es" ? "PROYECTO" : "PROJECT",
+		description: project.description,
+		position: projectPositions[index] ?? [0, 0, 6],
 		radius: 2.6,
-		kind: "riwi",
-	},
-	...humanSkillPositions,
-	...projectPoints,
-	...interestPoints,
-	{
-		id: "easter-egg",
-		name: "Curiosity detected",
-		label: "A QUIET DISCOVERY",
-		description: "Curiosity is the little spark that keeps the whole world growing.",
-		position: [-26, 0, -25],
-		radius: 1.8,
-		kind: "easter-egg",
-	},
-	{
-		id: "contact",
-		name: "The Lake",
-		label: "LET'S BUILD SOMETHING",
-		description: "Have an idea, a project or just want to connect?",
-		position: [0, 0, -22.7],
-		radius: 4,
-		kind: "contact",
-		route: [[0, 0, 1], [0, 0, -6], [0, 0, -14], [0, 0, -20]],
-	},
-];
+		kind: "project",
+		dataKey: project.name,
+	}));
 
-export const menuDestinations = [
-	{ label: "About", pointId: "about" },
-	{ label: "Skills", pointId: "skills" },
-	{ label: "Journey", pointId: "journey" },
-	{ label: "Projects", pointId: "project-0" },
-	{ label: "Riwi", pointId: "riwi" },
-	{ label: "Interests", pointId: "interest-0" },
-	{ label: "Contact", pointId: "contact" },
-] as const;
+	const interestPoints: WorldPoint[] = localizedInterests.map((interest, index) => {
+		const pos = interestLayout[index] ?? [0, 0, -14];
+		return {
+			id: `interest-${index}`,
+			name: interest.name,
+			label: lang === "es" ? "MÁS ALLÁ DEL CÓDIGO" : "BEYOND THE CODE",
+			description: interest.description,
+			position: pos,
+			radius: 2.0,
+			kind: "interest",
+			route: [[0, 0, 1], [0, 0, -6], [pos[0] * 0.6, 0, -12]],
+			dataKey: interest.name,
+		};
+	});
+
+	return [
+		{
+			id: "start",
+			name: wp.start.name,
+			label: wp.start.label,
+			description: wp.start.description,
+			position: [0, 0, 20],
+			radius: 3,
+			kind: "start",
+		},
+		{
+			id: "about",
+			name: wp.about.name,
+			label: wp.about.label,
+			description: wp.about.description,
+			position: [-14, 0, -10],
+			radius: 3.1,
+			kind: "about",
+			route: [[0, 0, 1], [0, 0, -5], [-7, 0, -7]],
+		},
+		{
+			id: "dna",
+			name: wp.dna.name,
+			label: wp.dna.label,
+			description: wp.dna.description,
+			position: [14, 0, -10],
+			radius: 3.1,
+			kind: "dna",
+			route: [[0, 0, 1], [0, 0, -5], [7, 0, -7]],
+		},
+		{
+			id: "journey",
+			name: wp.journey.name,
+			label: wp.journey.label,
+			description: wp.journey.description,
+			position: [0, 0, -5.7],
+			radius: 3.5,
+			kind: "journey",
+			route: [[0, 0, 1], [0, 0, -4]],
+		},
+		{
+			id: "garden",
+			name: wp.garden.name,
+			label: wp.garden.label,
+			description: wp.garden.description,
+			position: [-10, 0, 10],
+			radius: 3,
+			kind: "human-skill",
+		},
+		{
+			id: "skills",
+			name: wp.skills.name,
+			label: wp.skills.label,
+			description: wp.skills.description,
+			position: [10, 0, 10],
+			radius: 3.2,
+			kind: "skills",
+		},
+		{
+			id: "riwi",
+			name: wp.riwi.name,
+			label: wp.riwi.label,
+			description: wp.riwi.description,
+			position: [12, 0, 6],
+			radius: 2.6,
+			kind: "riwi",
+		},
+		...humanSkillPositions,
+		...projectPoints,
+		...interestPoints,
+		{
+			id: "easter-egg",
+			name: wp["easter-egg"].name,
+			label: wp["easter-egg"].label,
+			description: wp["easter-egg"].description,
+			position: [-26, 0, -25],
+			radius: 1.8,
+			kind: "easter-egg",
+		},
+		{
+			id: "contact",
+			name: wp.contact.name,
+			label: wp.contact.label,
+			description: wp.contact.description,
+			position: [0, 0, -23.5],
+			radius: 4,
+			kind: "contact",
+			route: [[0, 0, 1], [0, 0, -6], [0, 0, -14], [0, 0, -21]],
+		},
+	];
+}
+
+export const worldPoints = getWorldPoints("es");
+
+export function getWorldPoint(id: string | null, lang: Language = "es"): WorldPoint | null {
+	if (!id) return null;
+	const points = getWorldPoints(lang);
+	return points.find((point) => point.id === id) ?? null;
+}
+
+export function getMenuDestinations(lang: Language = "es") {
+	return i18nUI[lang].menuDestinations;
+}
+
+export const menuDestinations = getMenuDestinations("es");
 
 export const treePositions: [number, number, number, number][] = [
-	[-24, 0, -21, 1.35], [-21, 0, -15, 0.95], [-23, 0, -8, 1.1], [-20, 0, -2, 1.4],
-	[-18, 0, -19, 0.8], [-18, 0, -12, 1.2], [-16, 0, -5, 0.9], [-24, 0, 4, 1.1],
-	[-21, 0, 12, 0.85], [-18, 0, 18, 1.3], [-16, 0, 14, 0.95], [-14, 0, 21, 1.15],
-	[-12, 0, -21, 1.05], [-9, 0, -24, 1.2], [-4, 0, -21, 0.85], [5, 0, -23, 1.1],
-	[10, 0, -21, 0.95], [17, 0, -20, 1.25], [21, 0, -16, 1.1], [24, 0, -9, 1.3],
-	[20, 0, -3, 0.9], [23, 0, 4, 1.15], [19, 0, 14, 0.85], [22, 0, 20, 1.25],
-	[16, 0, 19, 1.0], [14, 0, 23, 1.3], [7, 0, 22, 0.9], [-7, 0, 23, 1.1],
-	[-24, 0, -29, 1.6], [-18, 0, -34, 1.4], [-10, 0, -36, 1.8], [0, 0, -38, 1.55],
-	[11, 0, -36, 1.7], [19, 0, -33, 1.45], [25, 0, -28, 1.6],
+	// Grove 1: North Alpine Pine Ridge (framing lake, river, snowy mountains, and open sky)
+	[-26, 0, -34, 1.6], [-19, 0, -38, 1.45], [-12, 0, -40, 1.7],
+	[-5, 0, -44, 1.5], [6, 0, -44, 1.55],
+	[14, 0, -40, 1.65], [21, 0, -37, 1.4], [27, 0, -32, 1.6],
+
+	// Grove 2: Lakeside Pine Copse (northwest riverbank)
+	[-26, 0, -26, 1.3], [-20, 0, -28, 1.1], [-26, 0, -18, 1.4],
+	[-21, 0, -12, 1.2], [-13, 0, -26, 1.05], [-7, 0, -28, 1.15],
+
+	// Grove 3: East Golden Birch & Meadow Copse (near Tech Lab & Riwi)
+	[18, 0, -25, 1.25], [25, 0, -19, 1.4], [21, 0, -12, 1.15],
+	[26, 0, -5, 1.35], [20, 0, 2, 1.05], [26, 0, 10, 1.3], [20, 0, 18, 1.25],
+
+	// Grove 4: West Sakura & Lilac Sanctuary Copse (near About & Garden)
+	[-26, 0, -11, 1.25], [-21, 0, -4, 1.15], [-26, 0, 4, 1.35],
+	[-20, 0, 11, 1.1], [-25, 0, 17, 1.3], [-18, 0, 23, 1.15],
+
+	// Grove 5: South Framing Woodland Entrance (framing the start trail)
+	[-16, 0, 26, 1.3], [-8, 0, 28, 1.15], [8, 0, 28, 1.15],
+	[16, 0, 26, 1.3], [24, 0, 25, 1.35],
 ];

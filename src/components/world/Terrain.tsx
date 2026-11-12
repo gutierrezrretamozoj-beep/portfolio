@@ -11,54 +11,25 @@ import {
 	PlaneGeometry,
 	Vector3,
 } from "three";
-import { terrainHeight } from "@/components/world/terrain-utils";
+import { distanceToPaths, paths, terrainHeight } from "@/components/world/terrain-utils";
 import { InstancedGrass } from "@/components/world/InstancedGrass";
 import type { PlayerRuntime } from "@/types/world";
 
-const TERRAIN_WIDTH = 58;
-const TERRAIN_DEPTH = 84;
-
-export const paths: [number, number, number][][] = [
-	[[0, 0, 24], [0, 0, 17], [0, 0, 9], [0, 0, 2], [0, 0, -5], [0, 0, -13], [0, 0, -22]],
-	[[0, 0, 8], [-4, 0, 9], [-8, 0, 10], [-10, 0, 10]],
-	[[0, 0, 8], [4, 0, 9], [8, 0, 10], [10, 0, 10]],
-	[[0, 0, -10], [-5, 0, -10], [-10, 0, -10], [-14, 0, -10]],
-	[[0, 0, -10], [5, 0, -10], [10, 0, -10], [14, 0, -10]],
-	[[0, 0, 11], [-2, 0, 9], [-3, 0, 6]],
-	[[0, 0, 11], [2, 0, 9], [3, 0, 6]],
-];
-
-export function distanceToPaths(x: number, z: number) {
-	let nearestSquared = Infinity;
-	for (const path of paths) {
-		for (let index = 0; index < path.length - 1; index += 1) {
-			const [startX, , startZ] = path[index];
-			const [endX, , endZ] = path[index + 1];
-			const segmentX = endX - startX;
-			const segmentZ = endZ - startZ;
-			const lengthSquared = segmentX * segmentX + segmentZ * segmentZ;
-			const progress = Math.max(0, Math.min(1, ((x - startX) * segmentX + (z - startZ) * segmentZ) / lengthSquared));
-			const offsetX = x - (startX + segmentX * progress);
-			const offsetZ = z - (startZ + segmentZ * progress);
-			nearestSquared = Math.min(nearestSquared, offsetX * offsetX + offsetZ * offsetZ);
-		}
-	}
-	return Math.sqrt(nearestSquared);
-}
+const TERRAIN_WIDTH = 80;
+const TERRAIN_DEPTH = 92;
 
 function createTerrain() {
-	const geometry = new PlaneGeometry(TERRAIN_WIDTH, TERRAIN_DEPTH, 120, 170);
+	const geometry = new PlaneGeometry(TERRAIN_WIDTH, TERRAIN_DEPTH, 110, 126);
 	const positions = geometry.attributes.position;
 	const colors: number[] = [];
 
-	// Natural, soft Ghibli meadow palette - 100% matte organic ground
-	const deepGrass = new Color("#528543");   // Rich meadow grass
-	const lushGrass = new Color("#689b53");   // Vibrant natural green
-	const warmMeadow = new Color("#7cae61");  // Warm sunlit grass
-	const softClover = new Color("#5b8b4b");  // Natural clover patch
-	const cliffRock = new Color("#6c7b66");   // Earthy cliff slope
-	const pathSoil = new Color("#b8a379");    // Warm sandy loam along paths
-	const riverBank = new Color("#55704d");   // Damp riverbank earth
+	const deepGrass = new Color("#386332");
+	const lushGrass = new Color("#5c9c45");
+	const warmMeadow = new Color("#8ebc5c");
+	const softClover = new Color("#52a348");
+	const cliffRock = new Color("#737d6e");
+	const pathSoil = new Color("#c7b38d");
+	const riverBank = new Color("#3e633a");
 
 	for (let index = 0; index < positions.count; index += 1) {
 		const x = positions.getX(index);
@@ -106,7 +77,7 @@ function createTerrain() {
 
 function createPath(points: [number, number, number][], width: number) {
 	const curve = new CatmullRomCurve3(points.map(([x, y, z]) => new Vector3(x, y, z)));
-	const segments = 120;
+	const segments = 40;
 	const positions: number[] = [];
 	const indices: number[] = [];
 	const uvs: number[] = [];
@@ -152,8 +123,8 @@ export function Terrain({ quality = "HIGH", playerRef }: TerrainProps) {
 	const terrainMaterial = useMemo(() => {
 		return new MeshStandardMaterial({
 			vertexColors: true,
-			roughness: 1.0,  // Pure matte natural earth & grass
-			metalness: 0.0,  // Zero metallic reflection
+			roughness: 0.95,
+			metalness: 0.0,
 			side: DoubleSide,
 		});
 	}, []);
@@ -161,13 +132,13 @@ export function Terrain({ quality = "HIGH", playerRef }: TerrainProps) {
 	// Natural earth/sand pathway material with GPU PolygonOffset (no Z-fighting)
 	const pathMaterial = useMemo(() => {
 		return new MeshStandardMaterial({
-			color: "#bfa980", // Warm natural soil & gravel
-			roughness: 1.0,   // Pure matte earth
+			color: "#c2ae87",
+			roughness: 0.95,
 			metalness: 0.0,
+			side: DoubleSide,
 			polygonOffset: true,
 			polygonOffsetFactor: -3.0,
 			polygonOffsetUnits: -6.0,
-			side: DoubleSide,
 		});
 	}, []);
 
@@ -184,10 +155,10 @@ export function Terrain({ quality = "HIGH", playerRef }: TerrainProps) {
 			{/* Dynamic Instanced Grass */}
 			<InstancedGrass quality={quality} playerRef={playerRef} distanceToPaths={distanceToPaths} />
 
-			{/* Horizon Skirt placed deep below terrain to prevent edge flicker */}
-			<mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, -1.8, 0]} receiveShadow>
+			{/* Horizon Skirt placed just below terrain minimum height (-0.40) for a seamless horizon */}
+			<mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, -0.48, 0]}>
 				<planeGeometry args={[600, 600]} />
-				<meshStandardMaterial color="#528543" roughness={1.0} metalness={0.0} />
+				<meshBasicMaterial color="#386332" />
 			</mesh>
 		</group>
 	);

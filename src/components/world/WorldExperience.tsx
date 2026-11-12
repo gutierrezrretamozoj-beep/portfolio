@@ -1,17 +1,23 @@
 "use client";
 
-import dynamic from "next/dynamic";
-import { useCallback, useEffect, useRef, useState } from "react";
-import { getWorldPoint } from "@/components/ui/WorldMap";
+import { lazy, Suspense, useCallback, useEffect, useRef, useState } from "react";
 import { WorldLoadingScreen } from "@/components/ui/WorldLoadingScreen";
+import { worldAudio } from "@/components/world/world-audio";
 import { WorldOverlay } from "@/components/ui/WorldOverlay";
 import { WorldPanel } from "@/components/ui/WorldPanel";
+import { getMenuDestinations, getWorldPoint } from "@/data/world";
+import { type Language } from "@/data/i18n";
 import { useDevicePerformance } from "@/hooks/useDevicePerformance";
+import { buildDynamicRoute, getDestinationInteractionSpot } from "@/components/player/navigation";
 import { terrainHeight } from "@/components/world/terrain-utils";
-import { menuDestinations, worldPoints } from "@/data/world";
+import {
+	AUTO_CYCLE_DURATION_SECONDS,
+	getStrictNextTimePhase,
+	type TimePhase,
+} from "@/components/world/time-system";
 import type { PlayerRuntime, WorldInput, WorldPoint } from "@/types/world";
 
-const WorldCanvas = dynamic(() => import("@/components/world/WorldCanvas"), { ssr: false });
+const WorldCanvas = lazy(() => import("@/components/world/WorldCanvas"));
 
 const initialPlayer: PlayerRuntime = {
 	position: { x: 0, y: terrainHeight(0, 20), z: 20 },
@@ -29,14 +35,78 @@ export function WorldExperience() {
 	const [target, setTarget] = useState<WorldPoint | null>(null);
 	const [menuOpen, setMenuOpen] = useState(false);
 	const [mapOpen, setMapOpen] = useState(false);
+	const mapOpenRef = useRef(false);
 	const [showControls, setShowControls] = useState(true);
+	const [hideUI, setHideUI] = useState(false);
 	const [loading, setLoading] = useState(true);
 	const [worldFailed, setWorldFailed] = useState(false);
+	const [timePhase, setTimePhase] = useState<TimePhase>("dawn");
+	const [cycleSeconds, setCycleSeconds] = useState(0);
+	const [language, setLanguage] = useState<Language>(() => {
+		if (typeof window !== "undefined") {
+			const saved = localStorage.getItem("portfolio_lang") as Language | null;
+			if (saved === "es" || saved === "en") return saved;
+			if (navigator.language.startsWith("es")) return "es";
+		}
+		return "es";
+	});
 
-	const nearbyPoint = getWorldPoint(nearbyId);
-	const activePoint = getWorldPoint(activePanelId);
+	const nearbyPoint = getWorldPoint(nearbyId, language);
+	const activePoint = getWorldPoint(activePanelId, language);
 
+	const toggleLanguage = useCallback(() => {
+		worldAudio.playUiSound("tap");
+		setLanguage((prev) => {
+			const next = prev === "es" ? "en" : "es";
+			if (typeof window !== "undefined") {
+				localStorage.setItem("portfolio_lang", next);
+			}
+			return next;
+		});
+	}, []);
+
+	const currentPhaseRef = useRef<TimePhase>("dawn");
+	useEffect(() => {
+		currentPhaseRef.current = timePhase;
+	}, [timePhase]);
+
+	useEffect(() => {
+		mapOpenRef.current = mapOpen;
+	}, [mapOpen]);
+
+	// Strict autonomous sequential cycle: strictly counts 60 seconds per phase
+	// and transitions sequentially without skipping any phase:
+	// Amanecer -> Mediodía -> Atardecer -> Noche -> Medianoche -> Amanecer
+	useEffect(() => {
+		let elapsedSeconds = 0;
+
+		const interval = window.setInterval(() => {
+			elapsedSeconds += 1;
+
+			if (elapsedSeconds >= AUTO_CYCLE_DURATION_SECONDS) {
+				elapsedSeconds = 0;
+				const nextPhase = getStrictNextTimePhase(currentPhaseRef.current);
+				currentPhaseRef.current = nextPhase;
+				setTimePhase(nextPhase);
+				setCycleSeconds(0);
+				worldAudio.playUiSound("phase");
+			} else {
+				setCycleSeconds(elapsedSeconds);
+			}
+		}, 1000);
+
+		return () => {
+			window.clearInterval(interval);
+		};
+	}, []);
 	const hideControls = useCallback(() => setShowControls(false), []);
+	const clearInput = useCallback(() => {
+		inputRef.current.moveX = 0;
+		inputRef.current.moveZ = 0;
+		inputRef.current.lookX = 0;
+		inputRef.current.lookY = 0;
+		inputRef.current.sprint = false;
+	}, []);
 
 	const onCanvasReady = useCallback(() => {
 		setWorldFailed(false);
@@ -44,28 +114,46 @@ export function WorldExperience() {
 	}, []);
 
 	const activatePoint = useCallback((pointId: string) => {
+		worldAudio.playLandmarkChime(pointId);
 		setActivePanelId(pointId);
 		setTarget(null);
 		setMenuOpen(false);
 		setMapOpen(false);
-		inputRef.current.moveX = 0;
-		inputRef.current.moveZ = 0;
+		clearInput();
 		hideControls();
-	}, [hideControls]);
+	}, [clearInput, hideControls]);
 
 	const navigateTo = useCallback((pointId: string) => {
-		const point = worldPoints.find((item) => item.id === pointId);
+		const point = getWorldPoint(pointId, language);
 		if (!point) return;
-		setTarget(point);
+		clearInput();
+		const position = getDestinationInteractionSpot(point);
+		const route = buildDynamicRoute(playerRef.current.position, point);
+		setTarget({
+			...point,
+			position,
+			route: route.slice(0, -1),
+		});
 		setActivePanelId(null);
 		setMenuOpen(false);
 		setMapOpen(false);
 		hideControls();
-	}, [hideControls]);
+	}, [clearInput, hideControls, language]);
 
 	const onArrived = useCallback((pointId: string) => {
+		worldAudio.playLandmarkChime(pointId);
 		setActivePanelId(pointId);
 		setTarget(null);
+	}, []);
+
+	const cancelNavigate = useCallback(() => {
+		setTarget(null);
+	}, []);
+
+	const handlePositionUpdate = useCallback((nextPos: PlayerRuntime["position"]) => {
+		if (mapOpenRef.current) {
+			setPlayer(nextPos);
+		}
 	}, []);
 
 	const openNearby = useCallback(() => {
@@ -87,6 +175,19 @@ export function WorldExperience() {
 	}, [hideControls, loading]);
 
 	useEffect(() => {
+		const pressedKeys = new Set<string>();
+
+		function updateMovement() {
+			if (target) return;
+			const up = pressedKeys.has("w") || pressedKeys.has("arrowup");
+			const down = pressedKeys.has("s") || pressedKeys.has("arrowdown");
+			const left = pressedKeys.has("a") || pressedKeys.has("arrowleft");
+			const right = pressedKeys.has("d") || pressedKeys.has("arrowright");
+			inputRef.current.moveZ = (down ? 1 : 0) - (up ? 1 : 0);
+			inputRef.current.moveX = (right ? 1 : 0) - (left ? 1 : 0);
+			inputRef.current.sprint = pressedKeys.has("shift");
+		}
+
 		function handleKeyDown(event: KeyboardEvent) {
 			const targetElement = event.target;
 			if (targetElement instanceof HTMLElement && (targetElement.isContentEditable || ["INPUT", "TEXTAREA", "SELECT"].includes(targetElement.tagName))) return;
@@ -96,48 +197,85 @@ export function WorldExperience() {
 				setMenuOpen(false);
 				setMapOpen(false);
 				setTarget(null);
-				inputRef.current.moveX = 0;
-				inputRef.current.moveZ = 0;
+				pressedKeys.clear();
+				clearInput();
 				return;
 			}
-			if (key === "m") {
-				setMapOpen((open) => !open);
+			if (key === "m" && !activePanelId && !menuOpen) {
+				const openingMap = !mapOpen;
+				setMapOpen(openingMap);
 				setMenuOpen(false);
+				if (openingMap) {
+					setPlayer({ ...playerRef.current.position });
+					pressedKeys.clear();
+					clearInput();
+					setTarget(null);
+				}
 				return;
 			}
+			if (key === "h" && !activePanelId && !menuOpen && !mapOpen) {
+				setHideUI((prev) => !prev);
+				return;
+			}
+			if (key === "l" && !activePanelId && !menuOpen && !mapOpen) {
+				toggleLanguage();
+				return;
+			}
+			if (activePanelId || menuOpen || mapOpen) return;
 			if (key === "e" && nearbyId) {
 				activatePoint(nearbyId);
 				return;
 			}
-			if (activePanelId || menuOpen || mapOpen || target) return;
-			const movementKeys = ["w", "a", "s", "d", "arrowup", "arrowleft", "arrowdown", "arrowright"];
+			if (target) return;
+			const movementKeys = ["w", "a", "s", "d", "arrowup", "arrowleft", "arrowdown", "arrowright", "shift"];
 			if (movementKeys.includes(key)) {
-				event.preventDefault();
+				if (key !== "shift") event.preventDefault();
 				hideControls();
+				pressedKeys.add(key);
+				updateMovement();
 			}
-			if (key === "w" || key === "arrowup") inputRef.current.moveZ = -1;
-			if (key === "s" || key === "arrowdown") inputRef.current.moveZ = 1;
-			if (key === "a" || key === "arrowleft") inputRef.current.moveX = -1;
-			if (key === "d" || key === "arrowright") inputRef.current.moveX = 1;
 		}
 
 		function handleKeyUp(event: KeyboardEvent) {
 			const key = event.key.toLowerCase();
-			if (["w", "s", "arrowup", "arrowdown"].includes(key)) inputRef.current.moveZ = 0;
-			if (["a", "d", "arrowleft", "arrowright"].includes(key)) inputRef.current.moveX = 0;
+			if (pressedKeys.has(key)) {
+				pressedKeys.delete(key);
+				updateMovement();
+			}
+		}
+
+		function handleWindowBlur() {
+			pressedKeys.clear();
+			clearInput();
+		}
+
+		function handleVisibilityChange() {
+			if (document.visibilityState === "hidden") {
+				pressedKeys.clear();
+				clearInput();
+			}
 		}
 
 		window.addEventListener("keydown", handleKeyDown);
 		window.addEventListener("keyup", handleKeyUp);
+		window.addEventListener("blur", handleWindowBlur);
+		document.addEventListener("visibilitychange", handleVisibilityChange);
 		return () => {
 			window.removeEventListener("keydown", handleKeyDown);
 			window.removeEventListener("keyup", handleKeyUp);
+			window.removeEventListener("blur", handleWindowBlur);
+			document.removeEventListener("visibilitychange", handleVisibilityChange);
 		};
-	}, [activatePoint, activePanelId, hideControls, mapOpen, menuOpen, nearbyId, target]);
+	}, [activatePoint, activePanelId, clearInput, hideControls, mapOpen, menuOpen, nearbyId, target, toggleLanguage]);
 
 	function onPointerDown(event: React.PointerEvent<HTMLElement>) {
 		if (event.pointerType !== "mouse" || event.button !== 0) return;
-		if (event.target instanceof HTMLElement && event.target.closest("[data-world-ui]")) return;
+		if (event.target instanceof Element && event.target.closest("[data-world-ui]")) return;
+		try {
+			event.currentTarget.setPointerCapture(event.pointerId);
+		} catch {
+			// ignore
+		}
 		lookDrag.current = { id: event.pointerId, x: event.clientX, y: event.clientY };
 		hideControls();
 	}
@@ -152,17 +290,36 @@ export function WorldExperience() {
 	}
 
 	function stopLook(event: React.PointerEvent<HTMLElement>) {
-		if (lookDrag.current?.id === event.pointerId) lookDrag.current = null;
+		if (lookDrag.current?.id === event.pointerId) {
+			try {
+				if (event.currentTarget.hasPointerCapture(event.pointerId)) {
+					event.currentTarget.releasePointerCapture(event.pointerId);
+				}
+			} catch {
+				// ignore
+			}
+			lookDrag.current = null;
+		}
 	}
 
 	function toggleMenu() {
-		setMenuOpen((open) => !open);
+		const openingMenu = !menuOpen;
+		setMenuOpen(openingMenu);
 		setMapOpen(false);
+		if (openingMenu) {
+			clearInput();
+			setTarget(null);
+		}
 	}
 
 	function toggleMap() {
-		setMapOpen((open) => !open);
+		const openingMap = !mapOpen;
+		setMapOpen(openingMap);
 		setMenuOpen(false);
+		if (openingMap) {
+			setPlayer({ ...playerRef.current.position });
+			clearInput();
+		}
 	}
 
 	return (
@@ -175,33 +332,52 @@ export function WorldExperience() {
 			onPointerMove={onPointerMove}
 			onPointerUp={stopLook}
 			onPointerCancel={stopLook}
+			onWheel={(event) => {
+				inputRef.current.zoom = (inputRef.current.zoom || 0) + event.deltaY * 0.0012;
+			}}
 		>
-			<WorldCanvas
-				inputRef={inputRef}
-				playerRef={playerRef}
-				quality={quality}
-				target={target}
-				onReady={onCanvasReady}
-				onNearbyChange={setNearbyId}
-				onPosition={setPlayer}
-				onArrived={onArrived}
-				onActivate={activatePoint}
-			/>
-			<WorldOverlay
-				inputRef={inputRef}
-				player={player}
-				nearbyPoint={nearbyPoint}
-				menuOpen={menuOpen}
-				mapOpen={mapOpen}
-				showControls={showControls}
-				onExplore={openNearby}
-				onToggleMenu={toggleMenu}
-				onToggleMap={toggleMap}
-				onNavigate={navigateTo}
-				canExplore={Boolean(nearbyPoint)}
-			/>
-			{activePoint && <WorldPanel point={activePoint} onClose={() => setActivePanelId(null)} />}
-			{worldFailed && <div className="world-failure" role="alert"><div><span className="eyebrow">A softer route</span><h1>This world needs WebGL.</h1><p>Explore David&apos;s story and work without the 3D scene.</p><nav aria-label="Accessible portfolio sections">{menuDestinations.map((destination) => <button key={destination.pointId} type="button" onClick={() => activatePoint(destination.pointId)}>{destination.label}</button>)}</nav></div></div>}
+			<Suspense fallback={null}>
+				{!worldFailed && <WorldCanvas
+					inputRef={inputRef}
+					playerRef={playerRef}
+					quality={quality}
+					target={target}
+					interacting={Boolean(activePanelId)}
+					timePhase={timePhase}
+					cycleSeconds={cycleSeconds}
+					language={language}
+					onReady={onCanvasReady}
+					onNearbyChange={setNearbyId}
+					onPosition={handlePositionUpdate}
+					onArrived={onArrived}
+					onCancelNavigate={cancelNavigate}
+					onActivate={activatePoint}
+				/>}
+			</Suspense>
+			{!hideUI && (
+				<WorldOverlay
+					inputRef={inputRef}
+					player={player}
+					nearbyPoint={nearbyPoint}
+					menuOpen={menuOpen}
+					mapOpen={mapOpen}
+					controlsDisabled={Boolean(menuOpen || mapOpen || activePanelId || worldFailed)}
+					showControls={showControls}
+					timePhase={timePhase}
+					cycleSeconds={cycleSeconds}
+					language={language}
+					activeTarget={target}
+					onExplore={openNearby}
+					onToggleMenu={toggleMenu}
+					onToggleMap={toggleMap}
+					onToggleLanguage={toggleLanguage}
+					onNavigate={navigateTo}
+					onCancelNavigate={cancelNavigate}
+					canExplore={Boolean(nearbyPoint)}
+				/>
+			)}
+			{activePoint && <WorldPanel point={activePoint} language={language} onClose={() => { worldAudio.playUiSound("close"); setActivePanelId(null); }} />}
+			{worldFailed && !activePoint && <div className="world-failure" role="alert"><div><span className="eyebrow">A softer route</span><h1>This world needs WebGL.</h1><p>Explore David&apos;s story and work without the 3D scene.</p><nav aria-label="Accessible portfolio sections">{getMenuDestinations(language).map((destination) => <button key={destination.pointId} type="button" onClick={() => activatePoint(destination.pointId)}>{destination.label}</button>)}</nav></div></div>}
 			<WorldLoadingScreen hidden={!loading} />
 		</main>
 	);

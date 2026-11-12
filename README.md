@@ -4,7 +4,7 @@ Portafolio personal explorable de José Gutiérrez. El canvas 3D es el mundo pri
 
 ## Tecnologías
 
-- Next.js 16 con App Router y TypeScript
+- Vite y React 19 con TypeScript
 - Tailwind CSS 4 y CSS para el sistema visual
 - Three.js, React Three Fiber y Drei para terreno, agua, vegetación, estructuras y cámara
 - Motion para respetar la preferencia de movimiento reducido
@@ -12,26 +12,26 @@ Portafolio personal explorable de José Gutiérrez. El canvas 3D es el mundo pri
 
 ## Desarrollo local
 
-Requiere Node.js compatible con Next.js 16 y npm.
+Requiere Node.js 20.19+ y npm.
 
 ```bash
 npm install
 npm run dev
 ```
 
-Abre <http://localhost:3000>. Para validar una compilación de producción:
+Abre <http://localhost:5173>. Para validar una compilación de producción:
 
 ```bash
 npm run lint
 npm run build
-npm run start
+npm run preview
 ```
 
 ## Estructura
 
 ```text
 src/
-	app/              Layout, metadata y HUD styles
+	app/              Estilos globales
 	components/
 		player/         Movimiento, cámara y joystick
 		ui/             Loading, menú, mapa y paneles
@@ -45,7 +45,7 @@ public/
 	textures/         Reservado para texturas optimizadas con licencia
 ```
 
-La página se monta desde `src/app/page.tsx`; `WorldExperience` administra estado y controles, y `WorldCanvas` compone la escena R3F. El mapa compacto conecta bosque/About, claro Digital DNA, río y puente, Project Valley, jardín, Natural Tech Lab, cabaña y lago de contacto. WASD/flechas mueven, el arrastre mira, `E` interactúa y `M` abre/cierra el mapa. En móvil aparecen joystick, zona de mirada y botón de interacción.
+La aplicación se monta desde `src/main.tsx`; `WorldExperience` administra estado y controles, y `WorldCanvas` compone la escena R3F como un chunk cargado de forma diferida. El mapa compacto conecta bosque/About, claro Digital DNA, río y puente, Project Valley, jardín, Natural Tech Lab, cabaña y lago de contacto. WASD/flechas mueven, el arrastre mira, `E` interactúa y `M` abre/cierra el mapa. En móvil aparecen joystick, zona de mirada y botón de interacción.
 
 Los hotspots de proyectos se generan desde `src/data/projects.ts`; los enlaces siguen como “Coming soon” hasta incorporar URLs reales. No se descargaron modelos externos. Para sustituir la geometría de placeholder, registra nombre del asset, fuente y licencia junto al GLB/GLTF correspondiente.
 
@@ -61,4 +61,4 @@ Los hotspots de proyectos se generan desde `src/data/projects.ts`; los enlaces s
 
 ## Publicación
 
-Sube el repositorio a GitHub y conecta la rama con Vercel. Vercel detecta Next.js automáticamente; el comando de build es `npm run build` y no se requieren variables de entorno para esta versión.
+Sube el repositorio a GitHub y conecta la rama con un proveedor de hosting estático. El comando de build es `npm run build` y la carpeta generada es `dist`; no se requieren variables de entorno para esta versión.

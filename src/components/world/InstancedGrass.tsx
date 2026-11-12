@@ -1,7 +1,8 @@
 "use client";
 
 import { useFrame } from "@react-three/fiber";
-import { useMemo, useRef } from "react";
+import { useReducedMotion } from "motion/react";
+import { useLayoutEffect, useMemo, useRef } from "react";
 import {
 	BufferAttribute,
 	BufferGeometry,
@@ -24,27 +25,45 @@ type InstancedGrassProps = {
 
 function createBladeGeometry() {
 	const geometry = new BufferGeometry();
-	const positions = [
-		-0.04, 0, 0,
-		0.04, 0, 0,
-		-0.025, 0.28, 0.04,
-		0.025, 0.28, 0.04,
-		0.0, 0.62, 0.12,
+	const positions: number[] = [];
+	const uvs: number[] = [];
+	const indices: number[] = [];
+	const blades = [
+		{ angle: -0.9, height: 0.58, lean: 0.15, x: -0.045, z: -0.02, width: 0.065 },
+		{ angle: -0.1, height: 0.78, lean: 0.22, x: -0.01, z: 0.02, width: 0.07 },
+		{ angle: 0.75, height: 0.65, lean: 0.17, x: 0.035, z: 0.015, width: 0.065 },
+		{ angle: 1.65, height: 0.52, lean: 0.14, x: 0.01, z: -0.035, width: 0.058 },
 	];
 
-	const indices = [
-		0, 1, 2,
-		2, 1, 3,
-		2, 3, 4,
-	];
+	for (const blade of blades) {
+		const directionX = Math.sin(blade.angle);
+		const directionZ = Math.cos(blade.angle);
+		const sideX = Math.cos(blade.angle);
+		const sideZ = -Math.sin(blade.angle);
+		const firstVertex = positions.length / 3;
 
-	const uvs = [
-		0.0, 0.0,
-		1.0, 0.0,
-		0.15, 0.45,
-		0.85, 0.45,
-		0.5, 1.0,
-	];
+		for (let level = 0; level <= 2; level += 1) {
+			const progress = level / 2;
+			const bend = blade.lean * progress * progress;
+			const halfWidth = (blade.width * (1 - progress) + 0.002) * 0.5;
+			const centerX = blade.x + directionX * bend;
+			const centerZ = blade.z + directionZ * bend;
+
+			for (const side of [-1, 1]) {
+				positions.push(
+					centerX + sideX * halfWidth * side,
+					blade.height * progress,
+					centerZ + sideZ * halfWidth * side,
+				);
+				uvs.push(side === -1 ? 0 : 1, progress);
+			}
+		}
+
+		for (let segment = 0; segment < 2; segment += 1) {
+			const start = firstVertex + segment * 2;
+			indices.push(start, start + 1, start + 2, start + 2, start + 1, start + 3);
+		}
+	}
 
 	geometry.setAttribute("position", new BufferAttribute(new Float32Array(positions), 3));
 	geometry.setAttribute("uv", new BufferAttribute(new Float32Array(uvs), 2));
@@ -54,22 +73,23 @@ function createBladeGeometry() {
 }
 
 export function InstancedGrass({ quality, playerRef, distanceToPaths }: InstancedGrassProps) {
-	const count = quality === "LOW" ? 3500 : quality === "MEDIUM" ? 8500 : 16000;
+	const reducedMotion = Boolean(useReducedMotion());
+	const count = quality === "LOW" ? 2200 : quality === "MEDIUM" ? 4500 : 7500;
 	const bladeGeometry = useMemo(() => createBladeGeometry(), []);
 
 	const uniforms = useMemo(() => {
 		return {
 			uTime: { value: 0 },
 			uPlayerPosition: { value: new Vector3(0, 0, 20) },
-			uRootColor: { value: new Color("#354f35") },
-			uMidColor: { value: new Color("#66895a") },
-			uTipColor: { value: new Color("#9ab96e") },
+			uRootColor: { value: new Color("#1b3f1c") },
+			uMidColor: { value: new Color("#4fa03a") },
+			uTipColor: { value: new Color("#a2e652") },
 		};
 	}, []);
 
 	const grassMaterial = useMemo(() => {
 		const mat = new MeshStandardMaterial({
-			roughness: 0.95,
+			roughness: 0.82,
 			metalness: 0.0,
 			side: DoubleSide,
 		});
@@ -132,7 +152,8 @@ export function InstancedGrass({ quality, playerRef, distanceToPaths }: Instance
 				#include <color_fragment>
 				vec3 grassCol = mix(uRootColor, uMidColor, smoothstep(0.0, 0.45, vGrassUv.y));
 				grassCol = mix(grassCol, uTipColor, smoothstep(0.45, 1.0, vGrassUv.y));
-				diffuseColor.rgb = grassCol;
+				float tipShine = smoothstep(0.72, 1.0, vGrassUv.y) * 0.14;
+				diffuseColor.rgb = grassCol + vec3(tipShine * 0.8, tipShine, tipShine * 0.35);
 				`
 			);
 		};
@@ -160,8 +181,8 @@ export function InstancedGrass({ quality, playerRef, distanceToPaths }: Instance
 			if (distanceToPaths(x, z) < 1.05) continue;
 
 			const y = terrainHeight(x, z);
-			const scaleY = MathUtils.randFloat(0.75, 1.35);
-			const scaleXZ = MathUtils.randFloat(0.85, 1.25);
+			const scaleY = MathUtils.randFloat(0.85, 1.45);
+			const scaleXZ = MathUtils.randFloat(1.0, 1.45);
 			const rotationY = MathUtils.randFloat(0, Math.PI * 2);
 			const tiltX = MathUtils.randFloat(-0.15, 0.15);
 			const tiltZ = MathUtils.randFloat(-0.15, 0.15);
@@ -184,7 +205,7 @@ export function InstancedGrass({ quality, playerRef, distanceToPaths }: Instance
 	}, [count, distanceToPaths]);
 
 	useFrame(({ clock }) => {
-		uniforms.uTime.value = clock.elapsedTime;
+		if (!reducedMotion) uniforms.uTime.value = clock.elapsedTime;
 		if (playerRef?.current) {
 			uniforms.uPlayerPosition.value.set(
 				playerRef.current.position.x,
@@ -194,21 +215,25 @@ export function InstancedGrass({ quality, playerRef, distanceToPaths }: Instance
 		}
 	});
 
+	const meshRef = useRef<InstancedMesh>(null);
+
+	useLayoutEffect(() => {
+		const mesh = meshRef.current;
+		if (!mesh) return;
+		mesh.geometry = bladeGeometry;
+		mesh.castShadow = false;
+		mesh.receiveShadow = true;
+		for (let i = 0; i < instances.count; i++) {
+			const offset = i * 16;
+			mesh.instanceMatrix.array.set(instances.buffer.subarray(offset, offset + 16), offset);
+		}
+		mesh.instanceMatrix.needsUpdate = true;
+	}, [bladeGeometry, instances, quality]);
+
 	return (
 		<instancedMesh
-			ref={(mesh) => {
-				if (mesh) {
-					mesh.instanceMatrix.needsUpdate = true;
-					mesh.geometry = bladeGeometry;
-					mesh.castShadow = quality === "HIGH";
-					mesh.receiveShadow = true;
-					for (let i = 0; i < instances.count; i++) {
-						const offset = i * 16;
-						mesh.instanceMatrix.array.set(instances.buffer.subarray(offset, offset + 16), offset);
-					}
-					mesh.instanceMatrix.needsUpdate = true;
-				}
-			}}
+			key={quality}
+			ref={meshRef}
 			args={[bladeGeometry, grassMaterial, instances.count]}
 		>
 			<primitive object={grassMaterial} attach="material" />

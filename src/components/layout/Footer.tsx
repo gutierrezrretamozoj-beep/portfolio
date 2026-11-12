@@ -6,7 +6,7 @@ export function Footer() {
 		<footer className="site-footer">
 			<div className="page-wrap footer-inner">
 				<a className="footer-brand" href="#top"><Sprout size={18} aria-hidden="true" /><span>{profile.fullName}</span></a>
-				<p>{profile.headline}</p>
+				<p lang="es">{profile.headline}</p>
 				<div className="footer-links" aria-label="Social links">
 					  <a href={profile.github} target="_blank" rel="noreferrer" aria-label="GitHub"><span>GitHub</span><ArrowUpRight size={14} /></a>
 					  <a href={profile.linkedin} target="_blank" rel="noreferrer" aria-label="LinkedIn"><span>LinkedIn</span><ArrowUpRight size={14} /></a>

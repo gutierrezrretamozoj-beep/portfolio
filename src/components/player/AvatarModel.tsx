@@ -1,23 +1,28 @@
 "use client";
 
 import { useFrame } from "@react-three/fiber";
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useReducedMotion } from "motion/react";
+import { Suspense, useEffect, useMemo, useRef } from "react";
 import {
 	Box3,
-	Color,
 	Group,
 	MathUtils,
 	Mesh,
 	MeshStandardMaterial,
 	Vector3,
 } from "three";
+import type { AnimationAction } from "three";
 import { useGLTF, useAnimations } from "@react-three/drei";
+import { clone as cloneSkeleton } from "three/examples/jsm/utils/SkeletonUtils.js";
+import { getModelUrl } from "@/data/models-manifest";
+import { ModelErrorBoundary } from "@/components/world/ModelAsset";
 
 export type AvatarAnimationState = "idle" | "walk" | "run" | "wave";
 
 type AvatarModelProps = {
 	animationState: AvatarAnimationState;
 	speedRef: { current: number };
+	reducedMotion: boolean;
 	modelUrl?: string;
 };
 
@@ -29,9 +34,11 @@ type AvatarModelProps = {
 function ProceduralStylizedAvatar({
 	animationState,
 	speedRef,
+	reducedMotion,
 }: {
 	animationState: AvatarAnimationState;
 	speedRef: { current: number };
+	reducedMotion: boolean;
 }) {
 	const rootGroup = useRef<Group>(null);
 	const hipsGroup = useRef<Group>(null);
@@ -124,10 +131,11 @@ function ProceduralStylizedAvatar({
 	}, []);
 
 	useFrame((_, delta) => {
+		if (reducedMotion && animationState !== "walk" && animationState !== "run") return;
 		const dt = Math.min(delta, 0.05);
 
-		const walkSpeedMultiplier = animationState === "run" ? 11.5 : animationState === "walk" ? 7.2 : 1.8;
-		cycleTime.current += dt * walkSpeedMultiplier;
+		const moving = animationState === "run" || animationState === "walk";
+		cycleTime.current += dt * (moving ? speedRef.current * 2.2 : 1.8);
 		const t = cycleTime.current;
 
 		if (!rootGroup.current || !hipsGroup.current || !spineGroup.current || !headGroup.current) return;
@@ -135,6 +143,9 @@ function ProceduralStylizedAvatar({
 		if (animationState === "idle") {
 			const breath = Math.sin(t * 1.5) * 0.03;
 			spineGroup.current.scale.set(1 + breath * 0.5, 1 + breath, 1 + breath * 0.5);
+			spineGroup.current.rotation.x = MathUtils.damp(spineGroup.current.rotation.x, 0, 6, dt);
+			spineGroup.current.rotation.y = MathUtils.damp(spineGroup.current.rotation.y, 0, 6, dt);
+			spineGroup.current.rotation.z = MathUtils.damp(spineGroup.current.rotation.z, 0, 6, dt);
 			hipsGroup.current.position.y = 0.82 + Math.sin(t * 1.5) * 0.015;
 
 			hipsGroup.current.rotation.z = Math.sin(t * 0.75) * 0.025;
@@ -162,44 +173,43 @@ function ProceduralStylizedAvatar({
 			}
 		} else if (animationState === "walk" || animationState === "run") {
 			const isRun = animationState === "run";
-			const strideAmplitude = isRun ? 0.85 : 0.58;
-			const armAmplitude = isRun ? 1.05 : 0.65;
-			const bounceHeight = isRun ? 0.07 : 0.04;
-			const forwardLean = isRun ? 0.22 : 0.12;
+			const strideAmplitude = isRun ? 0.72 : 0.44;
+			const armAmplitude = isRun ? 0.82 : 0.5;
+			const bounceHeight = isRun ? 0.055 : 0.022;
+			const forwardLean = isRun ? 0.16 : 0.07;
 
 			hipsGroup.current.position.y = 0.82 + Math.abs(Math.sin(t)) * bounceHeight;
-			hipsGroup.current.rotation.y = Math.sin(t) * 0.12;
-			hipsGroup.current.rotation.z = Math.cos(t) * 0.04;
-			spineGroup.current.rotation.x = forwardLean;
+			hipsGroup.current.rotation.y = Math.sin(t) * (isRun ? 0.09 : 0.055);
+			hipsGroup.current.rotation.z = Math.cos(t) * 0.025;
+			spineGroup.current.rotation.x = forwardLean + Math.sin(t * 2) * 0.012;
+			spineGroup.current.rotation.z = Math.sin(t) * 0.018;
 
-			headGroup.current.rotation.x = -forwardLean * 0.7 + Math.sin(t * 2) * 0.02;
-			headGroup.current.rotation.y = -Math.sin(t) * 0.06;
+			headGroup.current.rotation.x = -forwardLean * 0.45 + Math.sin(t * 2 + 0.5) * 0.015;
+			headGroup.current.rotation.y = -Math.sin(t) * 0.035;
 
 			const leftPhase = t;
 			const rightPhase = t + Math.PI;
+			const leftKneeBend = Math.max(0, -Math.sin(leftPhase)) * (isRun ? 1.4 : 0.95);
+			const rightKneeBend = Math.max(0, -Math.sin(rightPhase)) * (isRun ? 1.4 : 0.95);
 
 			if (leftLeg.current && rightLeg.current && leftKnee.current && rightKnee.current && leftFoot.current && rightFoot.current) {
-				leftLeg.current.rotation.x = Math.sin(leftPhase) * strideAmplitude;
-				rightLeg.current.rotation.x = Math.sin(rightPhase) * strideAmplitude;
-
-				const leftKneeBend = Math.max(0, -Math.sin(leftPhase)) * (isRun ? 1.4 : 0.95);
-				const rightKneeBend = Math.max(0, -Math.sin(rightPhase)) * (isRun ? 1.4 : 0.95);
-				leftKnee.current.rotation.x = leftKneeBend;
-				rightKnee.current.rotation.x = rightKneeBend;
-
-				leftFoot.current.rotation.x = Math.sin(leftPhase) * 0.25;
-				rightFoot.current.rotation.x = Math.sin(rightPhase) * 0.25;
+				leftLeg.current.rotation.x = MathUtils.damp(leftLeg.current.rotation.x, Math.sin(leftPhase) * strideAmplitude, 14, dt);
+				rightLeg.current.rotation.x = MathUtils.damp(rightLeg.current.rotation.x, Math.sin(rightPhase) * strideAmplitude, 14, dt);
+				leftKnee.current.rotation.x = MathUtils.damp(leftKnee.current.rotation.x, leftKneeBend, 14, dt);
+				rightKnee.current.rotation.x = MathUtils.damp(rightKnee.current.rotation.x, rightKneeBend, 14, dt);
+				leftFoot.current.rotation.x = MathUtils.damp(leftFoot.current.rotation.x, -Math.sin(leftPhase) * 0.18 + leftKneeBend * 0.08, 14, dt);
+				rightFoot.current.rotation.x = MathUtils.damp(rightFoot.current.rotation.x, -Math.sin(rightPhase) * 0.18 + rightKneeBend * 0.08, 14, dt);
 			}
 
 			if (leftArm.current && rightArm.current && leftForearm.current && rightForearm.current) {
-				leftArm.current.rotation.x = -Math.sin(leftPhase) * armAmplitude;
-				rightArm.current.rotation.x = -Math.sin(rightPhase) * armAmplitude;
+				leftArm.current.rotation.x = MathUtils.damp(leftArm.current.rotation.x, -Math.sin(leftPhase) * armAmplitude, 14, dt);
+				rightArm.current.rotation.x = MathUtils.damp(rightArm.current.rotation.x, -Math.sin(rightPhase) * armAmplitude, 14, dt);
 
-				leftArm.current.rotation.z = 0.2;
-				rightArm.current.rotation.z = -0.2;
+				leftArm.current.rotation.z = MathUtils.damp(leftArm.current.rotation.z, 0.2, 10, dt);
+				rightArm.current.rotation.z = MathUtils.damp(rightArm.current.rotation.z, -0.2, 10, dt);
 
-				leftForearm.current.rotation.x = 0.35 + Math.max(0, -Math.sin(leftPhase)) * (isRun ? 0.9 : 0.5);
-				rightForearm.current.rotation.x = 0.35 + Math.max(0, -Math.sin(rightPhase)) * (isRun ? 0.9 : 0.5);
+				leftForearm.current.rotation.x = MathUtils.damp(leftForearm.current.rotation.x, 0.28 + leftKneeBend * 0.35, 12, dt);
+				rightForearm.current.rotation.x = MathUtils.damp(rightForearm.current.rotation.x, 0.28 + rightKneeBend * 0.35, 12, dt);
 			}
 		} else if (animationState === "wave") {
 			hipsGroup.current.position.y = 0.82;
@@ -454,27 +464,20 @@ function GLTFAvatar({
 	url,
 	animationState,
 	speedRef,
+	reducedMotion,
 }: {
 	url: string;
 	animationState: AvatarAnimationState;
 	speedRef: { current: number };
+	reducedMotion: boolean;
 }) {
 	const group = useRef<Group>(null);
 	const { scene, animations } = useGLTF(url);
-	const { actions, names } = useAnimations(animations, group);
-	const activeAction = useRef<any>(null);
+	const activeAction = useRef<AnimationAction | null>(null);
 
-	// Validate bounding box & scale normalization
-	useEffect(() => {
-		if (!scene) return;
-		const box = new Box3().setFromObject(scene);
-		const size = new Vector3();
-		box.getSize(size);
-		if (size.y > 0.01 && (size.y > 3.0 || size.y < 0.6)) {
-			const scaleFactor = 1.7 / size.y;
-			scene.scale.setScalar(scaleFactor);
-		}
-		scene.traverse((child) => {
+	const normalized = useMemo(() => {
+		const cloned = cloneSkeleton(scene);
+		cloned.traverse((child) => {
 			if ((child as Mesh).isMesh) {
 				child.castShadow = true;
 				child.receiveShadow = true;
@@ -485,20 +488,41 @@ function GLTFAvatar({
 				}
 			}
 		});
+		cloned.updateMatrixWorld(true);
+		const box = new Box3().setFromObject(cloned);
+		const size = new Vector3();
+		const center = new Vector3();
+		box.getSize(size);
+		box.getCenter(center);
+		const scaleFactor = size.y > 0.01 ? 1.72 / size.y : 1;
+		return {
+			cloned,
+			scaleFactor,
+			offset: [-center.x * scaleFactor, -box.min.y * scaleFactor, -center.z * scaleFactor] as [number, number, number],
+		};
 	}, [scene]);
+
+	const { actions, names } = useAnimations(animations, group);
 
 	useEffect(() => {
 		if (!actions || names.length === 0) return;
+		if (reducedMotion && animationState !== "walk" && animationState !== "run") {
+			for (const action of Object.values(actions)) action?.stop();
+			activeAction.current = null;
+			return;
+		}
 
-		const findAction = (pattern: RegExp) => {
-			const matchedName = names.find((n) => pattern.test(n));
+		const findAction = (exactPattern: RegExp, fallbackPattern: RegExp) => {
+			const matchedName =
+				names.find((n) => exactPattern.test(n)) ??
+				names.find((n) => fallbackPattern.test(n));
 			return matchedName ? actions[matchedName] : null;
 		};
 
-		const idleAction = findAction(/idle/i) ?? actions[names[0]];
-		const walkAction = findAction(/walk/i) ?? actions[names[1]] ?? idleAction;
-		const runAction = findAction(/run/i) ?? walkAction;
-		const waveAction = findAction(/wave|greet|hello/i) ?? idleAction;
+		const idleAction = findAction(/(?:^|\|)idle$/i, /idle/i) ?? actions[names[0]];
+		const walkAction = findAction(/(?:^|\|)walk$/i, /walk/i) ?? actions[names[1]] ?? idleAction;
+		const runAction = findAction(/(?:^|\|)run$/i, /run/i) ?? walkAction;
+		const waveAction = findAction(/(?:^|\|)(?:wave|greet|hello)$/i, /wave|greet|hello/i) ?? idleAction;
 
 		let targetAction = idleAction;
 		if (animationState === "run") targetAction = runAction;
@@ -510,7 +534,7 @@ function GLTFAvatar({
 			activeAction.current?.fadeOut(0.2);
 			activeAction.current = targetAction;
 		}
-	}, [actions, names, animationState]);
+	}, [actions, names, animationState, reducedMotion]);
 
 	useFrame(() => {
 		if (!activeAction.current) return;
@@ -522,7 +546,9 @@ function GLTFAvatar({
 
 	return (
 		<group ref={group}>
-			<primitive object={scene} position={[0, 0, 0]} />
+			<group position={normalized.offset} scale={normalized.scaleFactor}>
+				<primitive object={normalized.cloned} />
+			</group>
 		</group>
 	);
 }
@@ -530,30 +556,35 @@ function GLTFAvatar({
 export function AvatarModel({
 	animationState,
 	speedRef,
+	reducedMotion: reducedMotionProp,
 	modelUrl,
 }: AvatarModelProps) {
-	const [hasCustomModel, setHasCustomModel] = useState(false);
+	const systemPrefersReducedMotion = Boolean(useReducedMotion());
+	const reducedMotion = reducedMotionProp || systemPrefersReducedMotion;
+	const resolvedUrl = modelUrl ?? getModelUrl("avatar");
 
-	useEffect(() => {
-		if (!modelUrl) return;
-		let isCancelled = false;
-		fetch(modelUrl, { method: "HEAD" })
-			.then((res) => {
-				if (!isCancelled && res.ok) {
-					setHasCustomModel(true);
-				}
-			})
-			.catch(() => {
-				setHasCustomModel(false);
-			});
-		return () => {
-			isCancelled = true;
-		};
-	}, [modelUrl]);
+	const fallback = (
+		<ProceduralStylizedAvatar
+			animationState={animationState}
+			speedRef={speedRef}
+			reducedMotion={reducedMotion}
+		/>
+	);
 
-	if (hasCustomModel && modelUrl) {
-		return <GLTFAvatar url={modelUrl} animationState={animationState} speedRef={speedRef} />;
+	if (!resolvedUrl) {
+		return fallback;
 	}
 
-	return <ProceduralStylizedAvatar animationState={animationState} speedRef={speedRef} />;
+	return (
+		<ModelErrorBoundary fallback={fallback}>
+			<Suspense fallback={fallback}>
+				<GLTFAvatar
+					url={resolvedUrl}
+					animationState={animationState}
+					speedRef={speedRef}
+					reducedMotion={reducedMotion}
+				/>
+			</Suspense>
+		</ModelErrorBoundary>
+	);
 }

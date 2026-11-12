@@ -30,6 +30,8 @@ export type WorldInput = {
 	moveZ: number;
 	lookX: number;
 	lookY: number;
+	zoom?: number;
+	sprint?: boolean;
 };
 
 export type PlayerRuntime = {
