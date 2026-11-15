@@ -28,6 +28,19 @@ button, a { font: inherit; }
 a { color: inherit; }
 ::selection { background: #c6f2e4; color: #273044; }
 :focus-visible { outline: 3px solid var(--blue); outline-offset: 4px; }
+
+/* Accessible visually-hidden utility for screen-readers and search engine indexers */
+.sr-only {
+  position: absolute !important;
+  width: 1px !important;
+  height: 1px !important;
+  padding: 0 !important;
+  margin: -1px !important;
+  overflow: hidden !important;
+  clip: rect(0, 0, 0, 0) !important;
+  white-space: nowrap !important;
+  border: 0 !important;
+}
 .page-wrap { width: min(1160px, calc(100% - 48px)); margin-inline: auto; }
 .section { padding-block: 112px; }
 .eyebrow { display: flex; align-items: center; gap: 10px; color: #477f73; font-size: 11px; font-weight: 700; letter-spacing: 0.13em; text-transform: uppercase; }
