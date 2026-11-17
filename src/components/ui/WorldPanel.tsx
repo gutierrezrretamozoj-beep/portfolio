@@ -103,12 +103,14 @@ function PanelContent({ point, language = "es" }: { point: WorldPoint; language?
 
 	if (point.kind === "project") {
 		const projectList = i18nProjects[language];
+		const projectIdx = point.id.startsWith("project-") ? parseInt(point.id.replace("project-", ""), 10) : -1;
 		const project =
-			projectList.find((item) => item.name === point.dataKey) ??
-			projectList.find((item) => item.name === point.name) ??
+			(projectIdx >= 0 && projectList[projectIdx]) ||
+			projectList.find((item) => item.name === point.dataKey) ||
+			projectList.find((item) => item.name === point.name) ||
 			projectList[0];
 
-		if (!project) return <p>{ui.comingSoon}</p>;
+		if (!project) return null;
 
 		return (
 			<>

@@ -613,7 +613,7 @@ export function BuilderPortfolio({
 
 					<BlueprintBlock
 						id="projects-grid"
-						tag="CARDS · 4 PROJECTS"
+						tag="CARDS · 6 PROJECTS"
 						buildEpoch={buildEpoch}
 						forceBuilt={forceBuilt}
 						transparentWhenBuilt

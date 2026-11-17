@@ -467,13 +467,13 @@ function FloatingProjectOrb({ index, color, emissive }: { index: number; color: 
 }
 
 function ProjectStands({ onActivate, isNight = false, language = "es" }: LandmarkProps) {
-	const points = worldPoints.filter((point) => point.kind === "project");
+	const points = worldPoints.filter((point) => point.kind === "project").slice(0, 4);
 	const localizedProjects = i18nProjects[language];
 	const orbConfigs = [
 		{ color: "#6ee7b7", emissive: "#10b981", numeral: language === "es" ? "PROYECTO I" : "PROJECT I" },
 		{ color: "#c4b5fd", emissive: "#6366f1", numeral: language === "es" ? "PROYECTO II" : "PROJECT II" },
-		{ color: "#fbcfe8", emissive: "#ec4899", numeral: language === "es" ? "PROYECTO III" : "PROJECT III" },
-		{ color: "#bae6fd", emissive: "#06b6d4", numeral: language === "es" ? "PROYECTO IV" : "PROJECT IV" },
+		{ color: "#fcd34d", emissive: "#d97706", numeral: language === "es" ? "PROYECTO III" : "PROJECT III" },
+		{ color: "#38bdf8", emissive: "#0284c7", numeral: language === "es" ? "PROYECTO IV" : "PROJECT IV" },
 	];
 
 	return (

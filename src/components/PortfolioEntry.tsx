@@ -46,9 +46,10 @@ export function PortfolioEntry() {
 				<p>React, Next.js, TypeScript, JavaScript, Three.js, WebGL, Tailwind CSS, PostgreSQL, NestJS, Git, Docker</p>
 				<h2>Proyectos Destacados</h2>
 				<ul>
-					<li>Cinema React — Aplicación con React, TypeScript, Tailwind CSS y consumo de APIs dinámicas</li>
-					<li>Red Camino de María — Proyecto web colaborativo estructurado con HTML, CSS, JavaScript y Vite</li>
-					<li>Next.js Migration — Arquitectura de migración frontend al App Router de Next.js</li>
+					<li>BioSanctuary OS — Plataforma SaaS multitenant para santuarios de fauna silvestre con PostgreSQL, Next.js 16, Three.js y Rate Limiting</li>
+					<li>CoSpace — Sistema fullstack de reservas de coworking bajo demanda con transacciones atómicas, Next.js 16 y Prisma ORM</li>
+					<li>Vice City — Plataforma de gestión de reservas deportivas, integración de pagos Stripe con webhooks y acceso por QR</li>
+					<li>Cinema React — Catálogo cinematográfico dinámico con React, TypeScript y Tailwind CSS consumiendo APIs REST</li>
 				</ul>
 				<h2>Contacto y Perfiles</h2>
 				<p>Email: gutierrezrretamozoj@gmail.com</p>
