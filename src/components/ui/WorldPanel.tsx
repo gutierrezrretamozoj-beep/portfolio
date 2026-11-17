@@ -133,7 +133,8 @@ function PanelContent({ point, language = "es" }: { point: WorldPoint; language?
 					))}
 				</div>
 				<div className="world-project-links">
-					<ExternalLink href={profile.github}>{ui.github}</ExternalLink>
+					<ExternalLink href={project.github ?? profile.github}>{ui.github}</ExternalLink>
+					{project.liveDemo && <ExternalLink href={project.liveDemo}>{ui.liveDemo}</ExternalLink>}
 					<ExternalLink href={profile.linkedin}>LinkedIn</ExternalLink>
 				</div>
 			</>

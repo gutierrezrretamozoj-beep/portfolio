@@ -1,1 +1,7 @@
-export const currentlyLearning = ["TypeScript", "Next.js", "Docker", "PostgreSQL", "Full-stack development"];
+export const currentlyLearning = [
+	"Arquitectura de Microservicios",
+	"NestJS",
+	"Kubernetes",
+	"GraphQL",
+	"IA Generativa & MCP",
+];

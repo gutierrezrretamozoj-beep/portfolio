@@ -613,34 +613,53 @@ export function BuilderPortfolio({
 
 					<BlueprintBlock
 						id="projects-grid"
-						tag="CARDS · 3 PROJECTS"
+						tag="CARDS · 4 PROJECTS"
 						buildEpoch={buildEpoch}
 						forceBuilt={forceBuilt}
 						transparentWhenBuilt
 						onConstructStart={handleConstructStart}
 						onConstructDone={handleConstructDone}
 					>
-						<div className="builder-grid-3">
+						<div className="builder-grid-2">
 							{localizedProjects.map((proj, idx) => (
 								<ConstructPiece
 									key={proj.name}
-									fromX={idx === 0 ? -64 : idx === 2 ? 64 : 0}
-									fromY={idx === 1 ? 48 : 26}
-									delay={idx * 160}
-									agentIndex={idx + 2}
+									fromX={idx % 2 === 0 ? -64 : 64}
+									fromY={idx < 2 ? -26 : 26}
+									delay={idx * 140}
+									agentIndex={idx % AGENT_CURSORS.length}
 								>
-									<article className="bp-block stage-built builder-card-pad">
-										<span className="builder-eyebrow" style={{ marginBottom: 2 }}>{proj.role}</span>
-										<h3>{proj.name}</h3>
-										<p>{proj.description}</p>
-										<p style={{ fontSize: 12.5, color: "#cbd5e1" }}>
-											<strong style={{ color: "#38bdf8" }}>{isEs ? "Aprendizaje: " : "Key takeaway: "}</strong>
-											{proj.whatILearned}
-										</p>
-										<div className="builder-tags">
-											{proj.technologies.map((tech) => (
-												<span key={tech} className="builder-tag">{tech}</span>
-											))}
+									<article className="bp-block stage-built builder-card-pad" style={{ display: "flex", flexDirection: "column", height: "100%", justifyContent: "space-between" }}>
+										<div>
+											<div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 6 }}>
+												<span className="builder-eyebrow" style={{ marginBottom: 0 }}>{proj.role}</span>
+												<span style={{ fontSize: 11, padding: "2px 8px", borderRadius: 6, background: "rgba(56, 189, 248, 0.12)", color: "#7dd3fc", border: "1px solid rgba(56, 189, 248, 0.25)" }}>
+													{proj.status}
+												</span>
+											</div>
+											<h3 style={{ marginTop: 2, marginBottom: 8 }}>{proj.name}</h3>
+											<p style={{ fontSize: 13.5, lineHeight: 1.55 }}>{proj.description}</p>
+											<p style={{ fontSize: 12.5, color: "#cbd5e1", marginTop: 8 }}>
+												<strong style={{ color: "#38bdf8" }}>{isEs ? "Aprendizaje: " : "Key takeaway: "}</strong>
+												{proj.whatILearned}
+											</p>
+											<div className="builder-tags" style={{ marginTop: 10 }}>
+												{proj.technologies.map((tech) => (
+													<span key={tech} className="builder-tag">{tech}</span>
+												))}
+											</div>
+										</div>
+										<div style={{ display: "flex", gap: 10, marginTop: 16 }}>
+											{proj.github && (
+												<a href={proj.github} target="_blank" rel="noopener noreferrer" className="builder-btn-secondary" style={{ fontSize: 12, padding: "6px 14px", textDecoration: "none" }}>
+													GitHub ↗
+												</a>
+											)}
+											{proj.liveDemo && (
+												<a href={proj.liveDemo} target="_blank" rel="noopener noreferrer" className="builder-btn-primary" style={{ fontSize: 12, padding: "6px 14px", textDecoration: "none" }}>
+													{isEs ? "Ver Demo ↗" : "Live Demo ↗"}
+												</a>
+											)}
 										</div>
 									</article>
 								</ConstructPiece>

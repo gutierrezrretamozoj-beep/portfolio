@@ -470,9 +470,10 @@ function ProjectStands({ onActivate, isNight = false, language = "es" }: Landmar
 	const points = worldPoints.filter((point) => point.kind === "project");
 	const localizedProjects = i18nProjects[language];
 	const orbConfigs = [
-		{ color: "#f0c3d0", emissive: "#ec4899", numeral: language === "es" ? "PROYECTO I" : "PROJECT I" },
-		{ color: "#cee5c5", emissive: "#10b981", numeral: language === "es" ? "PROYECTO II" : "PROJECT II" },
-		{ color: "#b7dce7", emissive: "#06b6d4", numeral: language === "es" ? "PROYECTO III" : "PROJECT III" },
+		{ color: "#6ee7b7", emissive: "#10b981", numeral: language === "es" ? "PROYECTO I" : "PROJECT I" },
+		{ color: "#c4b5fd", emissive: "#6366f1", numeral: language === "es" ? "PROYECTO II" : "PROJECT II" },
+		{ color: "#fbcfe8", emissive: "#ec4899", numeral: language === "es" ? "PROYECTO III" : "PROJECT III" },
+		{ color: "#bae6fd", emissive: "#06b6d4", numeral: language === "es" ? "PROYECTO IV" : "PROJECT IV" },
 	];
 
 	return (

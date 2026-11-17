@@ -25,9 +25,10 @@ export const worldColliders = [
 	{ x: -7.5, z: -16.6, radius: 1.4 }, // Front porch deck and steps
 
 	// Project Pedestal Stands (Central Plaza)
-	{ x: -3.8, z: 7.2, radius: 1.1 }, // Project 1 stand
-	{ x: 0.0, z: 5.2, radius: 1.1 },  // Project 2 stand
-	{ x: 3.8, z: 7.2, radius: 1.1 },  // Project 3 stand
+	{ x: -4.2, z: 7.6, radius: 1.1 }, // Project 1 stand (BioSanctuary OS)
+	{ x: -1.4, z: 5.3, radius: 1.1 }, // Project 2 stand (CoSpace)
+	{ x: 1.4, z: 5.3, radius: 1.1 },  // Project 3 stand (Vice City)
+	{ x: 4.2, z: 7.6, radius: 1.1 },  // Project 4 stand (Cinema React)
 
 	// Riwi Pavilion (study deck, desk and easel at [12, 6])
 	{ x: 12.0, z: 5.8, radius: 1.5 },

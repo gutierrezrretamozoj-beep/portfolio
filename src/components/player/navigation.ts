@@ -28,13 +28,16 @@ export function getDestinationInteractionSpot(target: WorldPoint): [number, numb
 		return [0, 0, -22.2];
 	}
 	if (target.id === "project-0") {
-		return [-3.8, 0, 8.4];
+		return [-4.2, 0, 8.8];
 	}
 	if (target.id === "project-1") {
-		return [0, 0, 6.5];
+		return [-1.4, 0, 6.5];
 	}
 	if (target.id === "project-2") {
-		return [3.8, 0, 8.4];
+		return [1.4, 0, 6.5];
+	}
+	if (target.id === "project-3") {
+		return [4.2, 0, 8.8];
 	}
 	if (target.id === "interest-0") {
 		return [0, 0, -15.2];
@@ -151,19 +154,20 @@ export const ROAD_NODES: Record<NodeId, RoadNode> = {
 	riwi_dest: { x: 12.0, z: 6.5, neighbors: ["riwi_junc"] },
 
 	// Project pedestals loop (South Central)
-	project_west_1: { x: -2.4, z: 9.2, neighbors: ["south_plaza", "project_west_2"] },
-	project_west_2: { x: -3.8, z: 7.2, neighbors: ["project_west_1", "project_west_3"] },
+	project_west_1: { x: -2.6, z: 9.5, neighbors: ["south_plaza", "project_west_2"] },
+	project_west_2: { x: -4.2, z: 7.6, neighbors: ["project_west_1", "project_west_3"] },
 	project_west_3: { x: -2.2, z: 4.2, neighbors: ["project_west_2", "bridge_south_app"] },
 
-	project_east_1: { x: 2.4, z: 9.2, neighbors: ["south_plaza", "project_east_2"] },
-	project_east_2: { x: 3.8, z: 7.2, neighbors: ["project_east_1", "project_east_3"] },
+	project_east_1: { x: 2.6, z: 9.5, neighbors: ["south_plaza", "project_east_2"] },
+	project_east_2: { x: 4.2, z: 7.6, neighbors: ["project_east_1", "project_east_3"] },
 	project_east_3: { x: 2.2, z: 4.2, neighbors: ["project_east_2", "bridge_south_app"] },
 
-	project_mid_1: { x: 0, z: 8.0, neighbors: ["south_plaza", "project_mid_2"] },
-	project_mid_2: { x: 0, z: 5.5, neighbors: ["project_mid_1", "bridge_south_app"] },
+	project_mid_1: { x: 0, z: 8.0, neighbors: ["south_plaza", "project_mid_west", "project_mid_east"] },
+	project_mid_west: { x: -1.4, z: 5.3, neighbors: ["project_mid_1", "bridge_south_app"] },
+	project_mid_east: { x: 1.4, z: 5.3, neighbors: ["project_mid_1", "bridge_south_app"] },
 
 	// Wooden Bridge Transit Sequence
-	bridge_south_app: { x: 0, z: 2.2, neighbors: ["project_west_3", "project_east_3", "project_mid_2", "bridge_south_gate"] },
+	bridge_south_app: { x: 0, z: 2.2, neighbors: ["project_west_3", "project_east_3", "project_mid_west", "project_mid_east", "bridge_south_gate"] },
 	bridge_south_gate: { x: 0, z: 0.6, neighbors: ["bridge_south_app", "bridge_mid"] },
 	bridge_mid: { x: 0, z: -2.5, neighbors: ["bridge_south_gate", "bridge_north_gate"] },
 	bridge_north_gate: { x: 0, z: -5.6, neighbors: ["bridge_mid", "bridge_north_app"] },

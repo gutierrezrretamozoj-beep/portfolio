@@ -9,9 +9,10 @@ import {
 import type { WorldPoint } from "@/types/world";
 
 const projectPositions: [number, number, number][] = [
-	[-3.8, 0, 7.2],
-	[0, 0, 5.2],
-	[3.8, 0, 7.2],
+	[-4.2, 0, 7.6],
+	[-1.4, 0, 5.3],
+	[1.4, 0, 5.3],
+	[4.2, 0, 7.6],
 ];
 
 const interestLayout: [number, number, number][] = [
