@@ -58,36 +58,64 @@ export function getDestinationInteractionSpot(target: WorldPoint): [number, numb
 }
 
 /**
- * Height elevation for the arched wooden bridge.
- * Returns the continuous y coordinate if within bridge bounds or approach ramps, or null if outside.
+ * Height elevation for all walkable 3D structures in the world:
+ * 1. Arched Wooden Bridge crossing the River
+ * 2. Lake Pier extending over the Lake basin (keeps player firmly on top of the wooden planks, never submerged!)
+ * 3. Riwi Pavilion raised wooden study deck
+ * 4. About David Terrace stone circular observation patio
+ * Returns the continuous y coordinate if within structure bounds or approach ramps, or null if on natural terrain.
  */
-export function getBridgeDeckHeight(x: number, z: number): number | null {
-	if (Math.abs(x) > 1.55) return null;
-
-	// Core arched bridge span
-	if (z >= -5.4 && z <= 0.4) {
-		const arch = Math.max(0, 1 - ((z + 2.5) / 2.95) ** 2);
-		return 0.41 + arch * 0.24;
+export function getWalkableStructureHeight(x: number, z: number): number | null {
+	// 1. Arched Wooden Bridge over River
+	if (Math.abs(x) <= 1.55) {
+		if (z >= -5.4 && z <= 0.4) {
+			const arch = Math.max(0, 1 - ((z + 2.5) / 2.95) ** 2);
+			return 0.41 + arch * 0.24;
+		}
+		if (z > 0.4 && z <= 1.0) {
+			const t = (1.0 - z) / 0.6;
+			const ground = terrainHeight(x, z);
+			return ground + (0.41 - ground) * t;
+		}
+		if (z < -5.4 && z >= -6.0) {
+			const t = (z - (-6.0)) / 0.6;
+			const ground = terrainHeight(x, z);
+			return ground + (0.41 - ground) * t;
+		}
 	}
 
-	// South approach ramp (smooth blend from path ground into bridge deck)
-	if (z > 0.4 && z <= 1.0) {
-		const t = (1.0 - z) / 0.6;
-		const ground = terrainHeight(x, z);
-		const deck = 0.41;
-		return ground + (deck - ground) * t;
+	// 2. Lake Pier (Contact Pier over the Lake basin)
+	// Pier planks: center X=0, width ~2.8m (X in [-1.45, 1.45]), extending over lake from Z = -21.6 to Z = -25.5
+	if (Math.abs(x) <= 1.45) {
+		// Deep pier deck planks (sits elevated at Y = 0.21, above lake water at Y = 0.088)
+		if (z >= -25.5 && z <= -21.8) {
+			return 0.21;
+		}
+		// South approach ramp smoothly ascending from shoreline ground onto pier deck
+		if (z > -21.8 && z <= -20.8) {
+			const t = (-20.8 - z) / 1.0;
+			const ground = terrainHeight(x, z);
+			return ground + (0.21 - ground) * t;
+		}
 	}
 
-	// North approach ramp (smooth blend from bridge deck to path ground)
-	if (z < -5.4 && z >= -6.0) {
-		const t = (z - (-6.0)) / 0.6;
-		const ground = terrainHeight(x, z);
-		const deck = 0.41;
-		return ground + (deck - ground) * t;
+	// 3. Riwi Pavilion raised wooden study deck (X: 12.0, Z: 6.0)
+	if (Math.abs(x - 12.0) <= 1.5 && Math.abs(z - 6.0) <= 1.3) {
+		const ground = terrainHeight(12.0, 6.0);
+		return ground + 0.20;
+	}
+
+	// 4. About David Terrace stone circular observation patio (X: -14.0, Z: -10.0)
+	const distToAbout = Math.hypot(x - (-14.0), z - (-10.0));
+	if (distToAbout <= 2.4) {
+		const ground = terrainHeight(-14.0, -10.0);
+		return ground + 0.18;
 	}
 
 	return null;
 }
+
+export const getBridgeDeckHeight = getWalkableStructureHeight;
 
 type NodeId = string;
 

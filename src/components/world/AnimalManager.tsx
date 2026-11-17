@@ -19,7 +19,7 @@ import {
 import { GLBOrFallback } from "@/components/world/ModelAsset";
 import { getModelUrl, MODEL_SPECS, type ModelSlotId } from "@/data/models-manifest";
 import { treePositions } from "@/data/world";
-import { getBridgeDeckHeight } from "@/components/player/navigation";
+import { getBridgeDeckHeight, getWalkableStructureHeight } from "@/components/player/navigation";
 import { terrainHeight, type CircularCollider } from "@/components/world/terrain-utils";
 import type { PlayerRuntime } from "@/types/world";
 
@@ -69,6 +69,26 @@ const ANIMAL_LIMITS = { minX: -25.5, maxX: 25.5, minZ: -29.5, maxZ: 24.5 };
 const CAT_RADIUS = 0.28;
 const RABBIT_RADIUS = 0.18;
 
+/**
+ * Returns true if the coordinate lies in open water (River or Lake)
+ * where land animals are strictly forbidden from roaming.
+ */
+export function isWaterSurface(x: number, z: number): boolean {
+	// River water check (excluding the wooden arched bridge)
+	const riverCenter = -2.5 + Math.sin(x * 0.13) * 0.75;
+	const isBridge = Math.abs(x) <= 1.55 && z >= -6.0 && z <= 1.0;
+	if (!isBridge && Math.abs(z - riverCenter) < 1.72) {
+		return true;
+	}
+	// Lake water check (excluding the wooden pier deck)
+	const onPier = Math.abs(x) <= 1.45 && z <= -21.6 && z >= -25.5;
+	const lakeNorm = Math.hypot(x / 6.9, (z + 28) / 5.4);
+	if (!onPier && lakeNorm < 1.15) {
+		return true;
+	}
+	return false;
+}
+
 function constrainAnimalMove(position: Vector3, nextX: number, nextZ: number, radius: number, colliders: CircularCollider[]) {
 	let x = MathUtils.clamp(nextX, ANIMAL_LIMITS.minX, ANIMAL_LIMITS.maxX);
 	let z = MathUtils.clamp(nextZ, ANIMAL_LIMITS.minZ, ANIMAL_LIMITS.maxZ);
@@ -92,10 +112,38 @@ function constrainAnimalMove(position: Vector3, nextX: number, nextZ: number, ra
 	}
 
 	const riverCenter = -2.5 + Math.sin(x * 0.13) * 0.75;
-	const onBridge = getBridgeDeckHeight(x, z) !== null;
+	const onBridge = getWalkableStructureHeight(x, z) !== null && z >= -6.0 && z <= 1.0;
 	if (!onBridge && Math.abs(z - riverCenter) < 1.72) {
 		const bankSign = Math.sign(position.z - riverCenter) || (z > riverCenter ? 1 : -1);
 		z = riverCenter + bankSign * 1.72;
+	}
+
+	// Lake Pier & Lake Shoreline Boundaries for land animals
+	const isPierZ = z <= -21.6 && z >= -25.6;
+	const wasPierZ = position.z <= -21.6 && position.z >= -25.6;
+	const wasOnPierDeck = Math.abs(position.x) <= 1.40 && (wasPierZ || (position.z <= -20.6 && position.z >= -26.0));
+
+	if (isPierZ || wasPierZ) {
+		if (wasOnPierDeck) {
+			x = MathUtils.clamp(x, -1.25, 1.25);
+			z = Math.max(z, -25.2);
+		} else {
+			if (Math.abs(x) < 1.55) {
+				const sideSign = Math.sign(position.x) || (x >= 0 ? 1 : -1);
+				x = sideSign * 1.55;
+			}
+		}
+	}
+
+	// Prevent land animals from stepping into the lake basin
+	const onPier = Math.abs(x) <= 1.40 && z <= -21.6 && z >= -25.5;
+	if (!onPier) {
+		const lakeNormDist = Math.hypot(x / 6.9, (z + 28) / 5.4);
+		if (lakeNormDist < 1.15) {
+			const push = 1.15 / Math.max(0.01, lakeNormDist);
+			x = x * push;
+			z = -28 + (z - (-28)) * push;
+		}
 	}
 
 	for (let pass = 0; pass < 2; pass += 1) {
@@ -116,8 +164,8 @@ function constrainAnimalMove(position: Vector3, nextX: number, nextZ: number, ra
 
 	x = MathUtils.clamp(x, ANIMAL_LIMITS.minX, ANIMAL_LIMITS.maxX);
 	z = MathUtils.clamp(z, ANIMAL_LIMITS.minZ, ANIMAL_LIMITS.maxZ);
-	const bridgeHeight = getBridgeDeckHeight(x, z);
-	return { x, z, ground: bridgeHeight === null ? terrainHeight(x, z) : bridgeHeight - 0.01 };
+	const structureHeight = getWalkableStructureHeight(x, z);
+	return { x, z, ground: structureHeight === null ? terrainHeight(x, z) : structureHeight - 0.01 };
 }
 
 type CatState = "walk" | "look" | "rest" | "flee";
@@ -188,20 +236,16 @@ function Cat({ playerRef, colliders, reducedMotion }: { playerRef: AnimalManager
 		};
 	}, []);
 
-	// Pick a random destination anywhere across the world
+	// Pick a random destination anywhere across the world (excluding open water and obstacles)
 	const pickNewDestination = () => {
-		for (let attempt = 0; attempt < 12; attempt += 1) {
+		for (let attempt = 0; attempt < 16; attempt += 1) {
 			const x = MathUtils.randFloat(-22, 22);
-			let z = MathUtils.randFloat(-26, 22);
-			const riverZ = -2.5 + Math.sin(x * 0.13) * 0.75;
-			if (Math.abs(z - riverZ) < 2.0) {
-				const currentRiverZ = -2.5 + Math.sin(pos.current.x * 0.13) * 0.75;
-				const bank = Math.sign(pos.current.z - currentRiverZ) || 1;
-				z = riverZ + bank * 2.4;
-			}
+			const z = MathUtils.randFloat(-26, 22);
+			if (isWaterSurface(x, z)) continue;
 			const blocked = colliders.some((collider) => Math.hypot(x - collider.x, z - collider.z) < collider.radius + CAT_RADIUS + 0.1);
 			if (blocked) continue;
-			targetPos.current.set(x, terrainHeight(x, z), z);
+			const ground = getWalkableStructureHeight(x, z) ?? terrainHeight(x, z);
+			targetPos.current.set(x, ground, z);
 			return;
 		}
 		targetPos.current.set(pos.current.x, pos.current.y, pos.current.z);
@@ -242,11 +286,13 @@ function Cat({ playerRef, colliders, reducedMotion }: { playerRef: AnimalManager
 			const fleeDirX = pos.current.x - player.x;
 			const fleeDirZ = pos.current.z - player.z;
 			const len = Math.hypot(fleeDirX, fleeDirZ) || 1;
-			targetPos.current.set(
-				MathUtils.clamp(pos.current.x + (fleeDirX / len) * 6, -23, 23),
-				0,
-				MathUtils.clamp(pos.current.z + (fleeDirZ / len) * 6, -27, 23)
-			);
+			const fleeX = MathUtils.clamp(pos.current.x + (fleeDirX / len) * 6, -23, 23);
+			const fleeZ = MathUtils.clamp(pos.current.z + (fleeDirZ / len) * 6, -27, 23);
+			if (!isWaterSurface(fleeX, fleeZ)) {
+				targetPos.current.set(fleeX, 0, fleeZ);
+			} else {
+				pickNewDestination();
+			}
 		}
 
 		// State Machine Transitions
@@ -625,8 +671,9 @@ function Rabbit({ initialPos, colorTheme, playerRef, colliders, reducedMotion }:
 			);
 			pos.current.set(next.x, next.ground + hopHeight, next.z);
 		} else {
-			// Stationary states: "sniff" or "graze"
-			pos.current.y = terrainHeight(pos.current.x, pos.current.z);
+			// Stationary states: "sniff" or "graze" - strictly ground rabbit on terrain or structure
+			const ground = getWalkableStructureHeight(pos.current.x, pos.current.z);
+			pos.current.y = ground === null ? terrainHeight(pos.current.x, pos.current.z) : ground;
 
 			if (timer.current <= 0) {
 				if (state.current === "sniff" || state.current === "graze") {
@@ -899,13 +946,16 @@ function Deer({
 			} else {
 				state.current = "walk";
 				timer.current = 3.0 + Math.random() * 2.5;
-				const roamDist = 3.0 + Math.random() * 4.0;
-				const angle = Math.random() * Math.PI * 2;
-				targetPos.current.set(
-					initialPos[0] + Math.cos(angle) * roamDist,
-					0,
-					initialPos[1] + Math.sin(angle) * roamDist,
-				);
+				for (let attempt = 0; attempt < 8; attempt++) {
+					const roamDist = 3.0 + Math.random() * 4.0;
+					const angle = Math.random() * Math.PI * 2;
+					const tx = initialPos[0] + Math.cos(angle) * roamDist;
+					const tz = initialPos[1] + Math.sin(angle) * roamDist;
+					if (!isWaterSurface(tx, tz)) {
+						targetPos.current.set(tx, 0, tz);
+						break;
+					}
+				}
 				const dx = targetPos.current.x - pos.current.x;
 				const dz = targetPos.current.z - pos.current.z;
 				desiredYaw.current = Math.atan2(dx, dz);
@@ -932,6 +982,9 @@ function Deer({
 			const moveZ = pos.current.z + Math.cos(currentYaw.current) * speed * dt;
 			const next = constrainAnimalMove(pos.current, moveX, moveZ, DEER_RADIUS * scale, colliders);
 			pos.current.set(next.x, next.ground, next.z);
+		} else {
+			const ground = getWalkableStructureHeight(pos.current.x, pos.current.z);
+			pos.current.y = ground === null ? terrainHeight(pos.current.x, pos.current.z) : ground;
 		}
 
 		deerGroup.current.position.copy(pos.current);
@@ -1167,13 +1220,16 @@ function Fox({
 			if (roll < 0.45) {
 				state.current = "trot";
 				timer.current = 2.5 + Math.random() * 3.0;
-				const roamDist = 3.0 + Math.random() * 4.0;
-				const angle = Math.random() * Math.PI * 2;
-				targetPos.current.set(
-					initialPos[0] + Math.cos(angle) * roamDist,
-					0,
-					initialPos[1] + Math.sin(angle) * roamDist,
-				);
+				for (let attempt = 0; attempt < 8; attempt++) {
+					const roamDist = 3.0 + Math.random() * 4.0;
+					const angle = Math.random() * Math.PI * 2;
+					const tx = initialPos[0] + Math.cos(angle) * roamDist;
+					const tz = initialPos[1] + Math.sin(angle) * roamDist;
+					if (!isWaterSurface(tx, tz)) {
+						targetPos.current.set(tx, 0, tz);
+						break;
+					}
+				}
 				const dx = targetPos.current.x - pos.current.x;
 				const dz = targetPos.current.z - pos.current.z;
 				desiredYaw.current = Math.atan2(dx, dz);
@@ -1201,6 +1257,9 @@ function Fox({
 			const moveZ = pos.current.z + Math.cos(currentYaw.current) * speed * dt;
 			const next = constrainAnimalMove(pos.current, moveX, moveZ, FOX_RADIUS, colliders);
 			pos.current.set(next.x, next.ground, next.z);
+		} else {
+			const ground = getWalkableStructureHeight(pos.current.x, pos.current.z);
+			pos.current.y = ground === null ? terrainHeight(pos.current.x, pos.current.z) : ground;
 		}
 
 		foxGroup.current.position.copy(pos.current);
@@ -1730,9 +1789,11 @@ function RiverDuck({
  */
 function Squirrel({
 	initialPos,
+	colliders,
 	reducedMotion,
 }: {
 	initialPos: [number, number];
+	colliders: AnimalManagerProps["colliders"];
 	reducedMotion: boolean;
 }) {
 	const squirrelGlb = useGlbAnimSync("animals/squirrel");
@@ -1768,13 +1829,16 @@ function Squirrel({
 			if (!isScampering.current && Math.random() > 0.45) {
 				isScampering.current = true;
 				timer.current = 1.2 + Math.random() * 0.8;
-				const angle = Math.random() * Math.PI * 2;
-				const dist = 1.4 + Math.random() * 1.8;
-				scamperTarget.current.set(
-					initialPos[0] + Math.cos(angle) * dist,
-					0,
-					initialPos[1] + Math.sin(angle) * dist,
-				);
+				for (let attempt = 0; attempt < 8; attempt++) {
+					const angle = Math.random() * Math.PI * 2;
+					const dist = 1.4 + Math.random() * 1.8;
+					const tx = initialPos[0] + Math.cos(angle) * dist;
+					const tz = initialPos[1] + Math.sin(angle) * dist;
+					if (!isWaterSurface(tx, tz)) {
+						scamperTarget.current.set(tx, 0, tz);
+						break;
+					}
+				}
 			} else {
 				isScampering.current = false;
 				timer.current = 3.0 + Math.random() * 3.0;
@@ -1797,10 +1861,14 @@ function Squirrel({
 				hopOffset = hopWave * Math.min(0.08, remaining * 0.14);
 				bodyPitch = -Math.cos(elapsed * 14) * 0.14;
 			}
-			pos.current.x = MathUtils.damp(pos.current.x, scamperTarget.current.x, 3.5, dt);
-			pos.current.z = MathUtils.damp(pos.current.z, scamperTarget.current.z, 3.5, dt);
+			const nextX = MathUtils.damp(pos.current.x, scamperTarget.current.x, 3.5, dt);
+			const nextZ = MathUtils.damp(pos.current.z, scamperTarget.current.z, 3.5, dt);
+			const next = constrainAnimalMove(pos.current, nextX, nextZ, 0.18, colliders);
+			pos.current.set(next.x, next.ground + hopOffset, next.z);
+		} else {
+			const ground = getWalkableStructureHeight(pos.current.x, pos.current.z);
+			pos.current.y = (ground === null ? terrainHeight(pos.current.x, pos.current.z) : ground) + hopOffset;
 		}
-		pos.current.y = terrainHeight(pos.current.x, pos.current.z) + hopOffset;
 
 		groupRef.current.position.copy(pos.current);
 		groupRef.current.rotation.y = currentYaw.current;
@@ -2065,6 +2133,7 @@ export function AnimalManager({ playerRef, quality, colliders }: AnimalManagerPr
 				<Squirrel
 					key={`squirrel-${index}`}
 					initialPos={item.pos}
+					colliders={colliders}
 					reducedMotion={reducedMotion}
 				/>
 			))}

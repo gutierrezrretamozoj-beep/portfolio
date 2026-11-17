@@ -52,5 +52,5 @@ export const worldColliders = [
 	{ x: 1.35, z: -23.2, radius: 0.55 },
 	{ x: -1.35, z: -24.4, radius: 0.55 },
 	{ x: 1.35, z: -24.4, radius: 0.55 },
-	{ x: 0.0, z: -25.2, radius: 0.9 }, // Deep water end of pier barrier
+	{ x: 0.0, z: -25.9, radius: 0.75 }, // Deep water end of pier barrier (stops player right at the edge without blocking the walkway)
 ];

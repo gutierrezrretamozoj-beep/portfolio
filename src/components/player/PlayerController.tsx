@@ -4,7 +4,7 @@ import { useFrame, useThree } from "@react-three/fiber";
 import { useReducedMotion } from "motion/react";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { Group, MathUtils, Vector3 } from "three";
-import { getBridgeDeckHeight } from "@/components/player/navigation";
+import { getBridgeDeckHeight, getWalkableStructureHeight } from "@/components/player/navigation";
 import { PlayerRuntime, WorldInput, WorldPoint } from "@/types/world";
 import { CircularCollider, distanceToPaths, terrainHeight } from "@/components/world/terrain-utils";
 import type { TimePhase } from "@/components/world/time-system";
@@ -237,18 +237,60 @@ export function PlayerController({ inputRef, playerRef, points, colliders, targe
 			}
 
 			const riverCenter = -2.5 + Math.sin(candidateX * 0.13) * 0.75;
-			const onBridge = getBridgeDeckHeight(candidateX, candidateZ) !== null;
+			const onBridge = getBridgeDeckHeight(candidateX, candidateZ) !== null && candidateZ >= -6.0 && candidateZ <= 1.0;
 			if (!onBridge && Math.abs(candidateZ - riverCenter) < 1.72) {
 				const bankSign = Math.sign(previousZ - riverCenter) || (candidateZ > riverCenter ? 1 : -1);
 				candidateZ = riverCenter + bankSign * 1.72;
 				velocity.current.z = 0;
 			}
+
+			// Lake Pier & Lake Shoreline Boundaries
+			const isPierZ = candidateZ <= -21.6 && candidateZ >= -25.6;
+			const wasPierZ = previousZ <= -21.6 && previousZ >= -25.6;
+			const wasOnPierDeck = Math.abs(previousX) <= 1.40 && (wasPierZ || (previousZ <= -20.6 && previousZ >= -26.0));
+
+			if (isPierZ || wasPierZ) {
+				if (wasOnPierDeck) {
+					// Player is ON the wooden pier deck: side railings and deep end barrier keep them safely on the planks
+					if (candidateX > 1.25) {
+						candidateX = 1.25;
+						velocity.current.x = 0;
+					} else if (candidateX < -1.25) {
+						candidateX = -1.25;
+						velocity.current.x = 0;
+					}
+					if (candidateZ < -25.2) {
+						candidateZ = -25.2;
+						velocity.current.z = 0;
+					}
+				} else {
+					// Player is off the pier: prevent walking into the pier structure from the water
+					if (Math.abs(candidateX) < 1.55) {
+						const sideSign = Math.sign(previousX) || (candidateX >= 0 ? 1 : -1);
+						candidateX = sideSign * 1.55;
+						velocity.current.x = 0;
+					}
+				}
+			}
+
+			// Lake shoreline: prevent wading into deep lake water if not on the pier deck
+			const onPier = Math.abs(candidateX) <= 1.40 && candidateZ <= -21.6 && candidateZ >= -25.5;
+			if (!onPier) {
+				const lakeNormDist = Math.hypot(candidateX / 6.9, (candidateZ + 28) / 5.4);
+				if (lakeNormDist < 1.12) {
+					const push = 1.12 / Math.max(0.01, lakeNormDist);
+					candidateX = candidateX * push;
+					candidateZ = -28 + (candidateZ - (-28)) * push;
+					velocity.current.x = 0;
+					velocity.current.z = 0;
+				}
+			}
 		}
 
 		player.position.x = candidateX;
 		player.position.z = candidateZ;
-		const bridgeHeight = getBridgeDeckHeight(candidateX, candidateZ);
-		const targetGroundY = bridgeHeight === null ? terrainHeight(candidateX, candidateZ) : bridgeHeight - 0.01;
+		const structureHeight = getWalkableStructureHeight(candidateX, candidateZ);
+		const targetGroundY = structureHeight === null ? terrainHeight(candidateX, candidateZ) : structureHeight - 0.01;
 		player.position.y = MathUtils.damp(player.position.y, targetGroundY, 20, frame);
 		positionUpdateTimer.current += frame;
 		if (positionUpdateTimer.current >= 0.15) {
