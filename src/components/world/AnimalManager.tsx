@@ -76,12 +76,12 @@ const RABBIT_RADIUS = 0.18;
 export function isWaterSurface(x: number, z: number): boolean {
 	// River water check (excluding the wooden arched bridge)
 	const riverCenter = -2.5 + Math.sin(x * 0.13) * 0.75;
-	const isBridge = Math.abs(x) <= 1.55 && z >= -6.0 && z <= 1.0;
-	if (!isBridge && Math.abs(z - riverCenter) < 1.72) {
+	const isBridge = Math.abs(x) <= 1.65 && z >= -5.6 && z <= 0.6;
+	if (!isBridge && Math.abs(z - riverCenter) < 1.75) {
 		return true;
 	}
 	// Lake water check (excluding the wooden pier deck)
-	const onPier = Math.abs(x) <= 1.45 && z <= -21.6 && z >= -25.5;
+	const onPier = Math.abs(x) <= 1.35 && z <= -21.0 && z >= -25.8;
 	const lakeNorm = Math.hypot(x / 6.9, (z + 28) / 5.4);
 	if (!onPier && lakeNorm < 1.15) {
 		return true;
@@ -93,51 +93,24 @@ function constrainAnimalMove(position: Vector3, nextX: number, nextZ: number, ra
 	let x = MathUtils.clamp(nextX, ANIMAL_LIMITS.minX, ANIMAL_LIMITS.maxX);
 	let z = MathUtils.clamp(nextZ, ANIMAL_LIMITS.minZ, ANIMAL_LIMITS.maxZ);
 
-	// Bridge wooden railings & side barriers for animals
-	const isBridgeZ = z >= -5.6 && z <= 0.6;
-	const wasBridgeZ = position.z >= -5.6 && position.z <= 0.6;
-	const wasOnBridgeDeck = Math.abs(position.x) <= 1.35 && (wasBridgeZ || (position.z >= -6.1 && position.z <= 1.1));
-
-	if (isBridgeZ || wasBridgeZ) {
-		if (wasOnBridgeDeck) {
-			// Animal is ON the bridge: keep strictly inside the wooden railings
-			x = MathUtils.clamp(x, -1.25, 1.25);
-		} else {
-			// Animal is on the bank: prevent walking into bridge sides
-			if (Math.abs(x) < 1.62) {
-				const sideSign = Math.sign(position.x) || (x >= 0 ? 1 : -1);
-				x = sideSign * 1.62;
-			}
+	// 1. Bridge railings & River water boundary for animals
+	const inBridgeCorridor = Math.abs(x) <= 1.65 && z >= -5.6 && z <= 0.6;
+	if (inBridgeCorridor) {
+		x = MathUtils.clamp(x, -1.40, 1.40);
+	} else {
+		const riverCenter = -2.5 + Math.sin(x * 0.13) * 0.75;
+		if (Math.abs(z - riverCenter) < 1.75) {
+			const bankSign = Math.sign(position.z - riverCenter) || (z > riverCenter ? 1 : -1);
+			z = riverCenter + bankSign * 1.75;
 		}
 	}
 
-	const riverCenter = -2.5 + Math.sin(x * 0.13) * 0.75;
-	const onBridge = getWalkableStructureHeight(x, z) !== null && z >= -6.0 && z <= 1.0;
-	if (!onBridge && Math.abs(z - riverCenter) < 1.72) {
-		const bankSign = Math.sign(position.z - riverCenter) || (z > riverCenter ? 1 : -1);
-		z = riverCenter + bankSign * 1.72;
-	}
-
-	// Lake Pier & Lake Shoreline Boundaries for land animals
-	const isPierZ = z <= -21.6 && z >= -25.6;
-	const wasPierZ = position.z <= -21.6 && position.z >= -25.6;
-	const wasOnPierDeck = Math.abs(position.x) <= 1.40 && (wasPierZ || (position.z <= -20.6 && position.z >= -26.0));
-
-	if (isPierZ || wasPierZ) {
-		if (wasOnPierDeck) {
-			x = MathUtils.clamp(x, -1.25, 1.25);
-			z = Math.max(z, -25.2);
-		} else {
-			if (Math.abs(x) < 1.55) {
-				const sideSign = Math.sign(position.x) || (x >= 0 ? 1 : -1);
-				x = sideSign * 1.55;
-			}
-		}
-	}
-
-	// Prevent land animals from stepping into the lake basin
-	const onPier = Math.abs(x) <= 1.40 && z <= -21.6 && z >= -25.5;
-	if (!onPier) {
+	// 2. Lake Pier railings & Lake water boundary for animals
+	const inPierCorridor = Math.abs(x) <= 1.35 && z <= -21.0 && z >= -25.8;
+	if (inPierCorridor) {
+		x = MathUtils.clamp(x, -1.15, 1.15);
+		z = Math.max(z, -25.5);
+	} else {
 		const lakeNormDist = Math.hypot(x / 6.9, (z + 28) / 5.4);
 		if (lakeNormDist < 1.15) {
 			const push = 1.15 / Math.max(0.01, lakeNormDist);

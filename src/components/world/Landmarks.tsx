@@ -884,16 +884,16 @@ function LakePier({ onActivate, isNight = false, language = "es" }: LandmarkProp
 				slot="landmarks/lake-pier"
 				fallback={
 					<>
-						{/* Wooden pier planks extending over the lake */}
-						<mesh position={[0, 0.06, -0.6]} receiveShadow>
-							<boxGeometry args={[2.8, 0.14, 3.8]} />
+						{/* Wooden pier planks extending over the lake (elevated matching lake-pier.glb) */}
+						<mesh position={[0, 0.81, -0.6]} receiveShadow>
+							<boxGeometry args={[2.8, 0.14, 4.2]} />
 							<meshStandardMaterial color="#947454" roughness={0.82} />
 						</mesh>
 
 						{/* Submerged wooden support pilings */}
 						{[-1.25, 1.25].flatMap((lx) => [-2.2, -0.6, 1.0].map((lz) => (
-							<mesh key={`piling-${lx}-${lz}`} position={[lx, -0.4, lz]} castShadow>
-								<cylinderGeometry args={[0.09, 0.11, 1.2, 8]} />
+							<mesh key={`piling-${lx}-${lz}`} position={[lx, 0.2, lz]} castShadow>
+								<cylinderGeometry args={[0.09, 0.11, 1.6, 8]} />
 								<meshStandardMaterial color="#614a34" roughness={0.9} />
 							</mesh>
 						)))}
@@ -901,12 +901,12 @@ function LakePier({ onActivate, isNight = false, language = "es" }: LandmarkProp
 						{/* Pier side railings */}
 						{[-1.32, 1.32].map((rx) => (
 							<group key={`rail-${rx}`}>
-								<mesh position={[rx, 0.55, -0.6]}>
-									<boxGeometry args={[0.06, 0.08, 3.6]} />
+								<mesh position={[rx, 1.30, -0.6]}>
+									<boxGeometry args={[0.06, 0.08, 4.0]} />
 									<meshStandardMaterial color="#7a5c3e" roughness={0.85} />
 								</mesh>
 								{[-2.1, -0.6, 0.9].map((pzPos) => (
-									<mesh key={`post-${pzPos}`} position={[rx, 0.32, pzPos]}>
+									<mesh key={`post-${pzPos}`} position={[rx, 1.07, pzPos]}>
 										<cylinderGeometry args={[0.05, 0.06, 0.55, 6]} />
 										<meshStandardMaterial color="#6a4e32" roughness={0.88} />
 									</mesh>
@@ -916,7 +916,7 @@ function LakePier({ onActivate, isNight = false, language = "es" }: LandmarkProp
 
 						{/* End-of-pier nautical lanterns */}
 						{[-1.32, 1.32].map((lx) => (
-							<group key={`pier-lamp-${lx}`} position={[lx, 0.65, -2.2]}>
+							<group key={`pier-lamp-${lx}`} position={[lx, 1.40, -2.2]}>
 								<mesh>
 									<boxGeometry args={[0.16, 0.24, 0.16]} />
 									<meshStandardMaterial color="#fef08a" emissive="#f59e0b" emissiveIntensity={isNight ? 2.6 : 1.2} roughness={0.25} />
@@ -925,7 +925,7 @@ function LakePier({ onActivate, isNight = false, language = "es" }: LandmarkProp
 						))}
 
 						{/* Wooden mooring bollards */}
-						<mesh position={[1.05, 0.22, -2.1]} castShadow>
+						<mesh position={[1.05, 0.97, -2.1]} castShadow>
 							<cylinderGeometry args={[0.1, 0.12, 0.34, 8]} />
 							<meshStandardMaterial color="#59412b" roughness={0.92} />
 						</mesh>
@@ -933,8 +933,8 @@ function LakePier({ onActivate, isNight = false, language = "es" }: LandmarkProp
 				}
 			/>
 
-			{/* Prominently anchored contact sign facing south */}
-			<group position={[0, 0, 1.4]}>
+			{/* Prominently anchored contact sign facing south standing firmly on the pier deck */}
+			<group position={[0, 0.88, 1.4]}>
 				<GroundedSignpost
 					lines={i18nSignposts[language].contact}
 					accentColor="#3b82f6"

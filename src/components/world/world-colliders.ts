@@ -48,9 +48,9 @@ export const worldColliders = [
 	{ x: -2.2, z: -5.7, radius: 1.1 },
 
 	// Lake Pier Railings & Deep Water Boundary ([0, -22.2] to [0, -25.5])
-	{ x: -1.35, z: -23.2, radius: 0.55 },
-	{ x: 1.35, z: -23.2, radius: 0.55 },
-	{ x: -1.35, z: -24.4, radius: 0.55 },
-	{ x: 1.35, z: -24.4, radius: 0.55 },
-	{ x: 0.0, z: -25.9, radius: 0.75 }, // Deep water end of pier barrier (stops player right at the edge without blocking the walkway)
+	{ x: -1.55, z: -23.2, radius: 0.45 },
+	{ x: 1.55, z: -23.2, radius: 0.45 },
+	{ x: -1.55, z: -24.6, radius: 0.45 },
+	{ x: 1.55, z: -24.6, radius: 0.45 },
+	{ x: 0.0, z: -26.0, radius: 0.75 }, // Deep water end of pier barrier (stops player right at the edge without blocking the walkway)
 ];

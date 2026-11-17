@@ -59,43 +59,46 @@ export function getDestinationInteractionSpot(target: WorldPoint): [number, numb
 
 /**
  * Height elevation for all walkable 3D structures in the world:
- * 1. Arched Wooden Bridge crossing the River
- * 2. Lake Pier extending over the Lake basin (keeps player firmly on top of the wooden planks, never submerged!)
- * 3. Riwi Pavilion raised wooden study deck
- * 4. About David Terrace stone circular observation patio
+ * 1. Arched Wooden Bridge crossing the River (exact match to bridge.glb: peak Y = 0.650 at Z = -2.5, starts/ends Y = 0.438 at Z = 0.38 and Z = -5.38)
+ * 2. Lake Pier extending over the Lake basin (exact match to lake-pier.glb: elevated wooden deck Y = 0.96)
+ * 3. Riwi Pavilion raised wooden study deck (Y = ground + 0.20)
+ * 4. About David Terrace stone circular observation patio (Y = ground + 0.18)
  * Returns the continuous y coordinate if within structure bounds or approach ramps, or null if on natural terrain.
  */
 export function getWalkableStructureHeight(x: number, z: number): number | null {
 	// 1. Arched Wooden Bridge over River
-	if (Math.abs(x) <= 1.55) {
-		if (z >= -5.4 && z <= 0.4) {
-			const arch = Math.max(0, 1 - ((z + 2.5) / 2.95) ** 2);
-			return 0.41 + arch * 0.24;
+	// Planks span: X in [-1.75, 1.75], Z in [-5.38, 0.38]
+	if (Math.abs(x) <= 1.75) {
+		if (z >= -5.38 && z <= 0.38) {
+			const arch = Math.max(0, 1 - ((z + 2.5) / 2.88) ** 2);
+			return 0.438 + arch * 0.212;
 		}
-		if (z > 0.4 && z <= 1.0) {
-			const t = (1.0 - z) / 0.6;
+		// South trail approach ramp smoothly ascending from ground onto bridge planks
+		if (z > 0.38 && z <= 1.25) {
+			const t = (1.25 - z) / 0.87;
 			const ground = terrainHeight(x, z);
-			return ground + (0.41 - ground) * t;
+			return ground + (0.438 - ground) * t;
 		}
-		if (z < -5.4 && z >= -6.0) {
-			const t = (z - (-6.0)) / 0.6;
+		// North trail approach ramp smoothly descending from bridge planks onto ground
+		if (z < -5.38 && z >= -6.25) {
+			const t = (z - (-6.25)) / 0.87;
 			const ground = terrainHeight(x, z);
-			return ground + (0.41 - ground) * t;
+			return ground + (0.438 - ground) * t;
 		}
 	}
 
 	// 2. Lake Pier (Contact Pier over the Lake basin)
-	// Pier planks: center X=0, width ~2.8m (X in [-1.45, 1.45]), extending over lake from Z = -21.6 to Z = -25.5
+	// Pier deck sits elevated at Y = 0.96 (matching lake-pier.glb and shore hill)
+	// Spans X in [-1.45, 1.45], Z in [-25.8, -21.2]
 	if (Math.abs(x) <= 1.45) {
-		// Deep pier deck planks (sits elevated at Y = 0.21, above lake water at Y = 0.088)
-		if (z >= -25.5 && z <= -21.8) {
-			return 0.21;
+		if (z >= -25.8 && z <= -21.2) {
+			return 0.96;
 		}
-		// South approach ramp smoothly ascending from shoreline ground onto pier deck
-		if (z > -21.8 && z <= -20.8) {
-			const t = (-20.8 - z) / 1.0;
+		// Shore approach ramp smoothly ascending from shoreline ground onto pier deck
+		if (z > -21.2 && z <= -19.5) {
+			const t = (-19.5 - z) / 1.7;
 			const ground = terrainHeight(x, z);
-			return ground + (0.21 - ground) * t;
+			return ground + (0.96 - ground) * t;
 		}
 	}
 

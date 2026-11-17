@@ -211,74 +211,35 @@ export function PlayerController({ inputRef, playerRef, points, colliders, targe
 			candidateX = MathUtils.clamp(candidateX, WORLD_LIMITS.minX, WORLD_LIMITS.maxX);
 			candidateZ = MathUtils.clamp(candidateZ, WORLD_LIMITS.minZ, WORLD_LIMITS.maxZ);
 
-			// Bridge wooden railings & side barriers (walkway is between x = -1.30 and 1.30)
-			const isBridgeZ = candidateZ >= -5.6 && candidateZ <= 0.6;
-			const wasBridgeZ = previousZ >= -5.6 && previousZ <= 0.6;
-			const wasOnBridgeDeck = Math.abs(previousX) <= 1.35 && (wasBridgeZ || (previousZ >= -6.1 && previousZ <= 1.1));
-
-			if (isBridgeZ || wasBridgeZ) {
-				if (wasOnBridgeDeck) {
-					// Player is ON the bridge deck: wooden railings strictly block side exit
-					if (candidateX > 1.30) {
-						candidateX = 1.30;
-						velocity.current.x = 0;
-					} else if (candidateX < -1.30) {
-						candidateX = -1.30;
-						velocity.current.x = 0;
-					}
-				} else {
-					// Player is outside the bridge on the bank: prevent walking into the sides of the bridge
-					if (Math.abs(candidateX) < 1.62) {
-						const sideSign = Math.sign(previousX) || (candidateX >= 0 ? 1 : -1);
-						candidateX = sideSign * 1.62;
-						velocity.current.x = 0;
-					}
+			// 1. Bridge railings & River water boundary
+			const inBridgeCorridor = Math.abs(candidateX) <= 1.65 && candidateZ >= -5.6 && candidateZ <= 0.6;
+			if (inBridgeCorridor) {
+				// Player is ON the wooden bridge walkway: keep safely within railings
+				candidateX = MathUtils.clamp(candidateX, -1.45, 1.45);
+			} else {
+				// Player is off the bridge on the bank: prevent wading into the river water
+				const riverCenter = -2.5 + Math.sin(candidateX * 0.13) * 0.75;
+				if (Math.abs(candidateZ - riverCenter) < 1.75) {
+					const bankSign = Math.sign(previousZ - riverCenter) || (candidateZ > riverCenter ? 1 : -1);
+					candidateZ = riverCenter + bankSign * 1.75;
+					velocity.current.z = 0;
 				}
 			}
 
-			const riverCenter = -2.5 + Math.sin(candidateX * 0.13) * 0.75;
-			const onBridge = getBridgeDeckHeight(candidateX, candidateZ) !== null && candidateZ >= -6.0 && candidateZ <= 1.0;
-			if (!onBridge && Math.abs(candidateZ - riverCenter) < 1.72) {
-				const bankSign = Math.sign(previousZ - riverCenter) || (candidateZ > riverCenter ? 1 : -1);
-				candidateZ = riverCenter + bankSign * 1.72;
-				velocity.current.z = 0;
-			}
-
-			// Lake Pier & Lake Shoreline Boundaries
-			const isPierZ = candidateZ <= -21.6 && candidateZ >= -25.6;
-			const wasPierZ = previousZ <= -21.6 && previousZ >= -25.6;
-			const wasOnPierDeck = Math.abs(previousX) <= 1.40 && (wasPierZ || (previousZ <= -20.6 && previousZ >= -26.0));
-
-			if (isPierZ || wasPierZ) {
-				if (wasOnPierDeck) {
-					// Player is ON the wooden pier deck: side railings and deep end barrier keep them safely on the planks
-					if (candidateX > 1.25) {
-						candidateX = 1.25;
-						velocity.current.x = 0;
-					} else if (candidateX < -1.25) {
-						candidateX = -1.25;
-						velocity.current.x = 0;
-					}
-					if (candidateZ < -25.2) {
-						candidateZ = -25.2;
-						velocity.current.z = 0;
-					}
-				} else {
-					// Player is off the pier: prevent walking into the pier structure from the water
-					if (Math.abs(candidateX) < 1.55) {
-						const sideSign = Math.sign(previousX) || (candidateX >= 0 ? 1 : -1);
-						candidateX = sideSign * 1.55;
-						velocity.current.x = 0;
-					}
+			// 2. Lake Pier railings & Lake water boundary
+			const inPierCorridor = Math.abs(candidateX) <= 1.35 && candidateZ <= -21.0 && candidateZ >= -25.8;
+			if (inPierCorridor) {
+				// Player is ON the wooden pier deck: clamp within railings and end barrier
+				candidateX = MathUtils.clamp(candidateX, -1.15, 1.15);
+				if (candidateZ < -25.5) {
+					candidateZ = -25.5;
+					velocity.current.z = 0;
 				}
-			}
-
-			// Lake shoreline: prevent wading into deep lake water if not on the pier deck
-			const onPier = Math.abs(candidateX) <= 1.40 && candidateZ <= -21.6 && candidateZ >= -25.5;
-			if (!onPier) {
+			} else {
+				// Player is off the pier: prevent stepping into the lake water basin
 				const lakeNormDist = Math.hypot(candidateX / 6.9, (candidateZ + 28) / 5.4);
-				if (lakeNormDist < 1.12) {
-					const push = 1.12 / Math.max(0.01, lakeNormDist);
+				if (lakeNormDist < 1.15) {
+					const push = 1.15 / Math.max(0.01, lakeNormDist);
 					candidateX = candidateX * push;
 					candidateZ = -28 + (candidateZ - (-28)) * push;
 					velocity.current.x = 0;
@@ -290,8 +251,8 @@ export function PlayerController({ inputRef, playerRef, points, colliders, targe
 		player.position.x = candidateX;
 		player.position.z = candidateZ;
 		const structureHeight = getWalkableStructureHeight(candidateX, candidateZ);
-		const targetGroundY = structureHeight === null ? terrainHeight(candidateX, candidateZ) : structureHeight - 0.01;
-		player.position.y = MathUtils.damp(player.position.y, targetGroundY, 20, frame);
+		const targetGroundY = structureHeight === null ? terrainHeight(candidateX, candidateZ) : structureHeight;
+		player.position.y = MathUtils.damp(player.position.y, targetGroundY, 28, frame);
 		positionUpdateTimer.current += frame;
 		if (positionUpdateTimer.current >= 0.15) {
 			positionUpdateTimer.current = 0;
