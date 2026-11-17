@@ -698,8 +698,9 @@ function AnimatedButterflies({ reducedMotion }: { reducedMotion: boolean }) {
 }
 
 import {
-	getCelestialOrbits,
-	getContinuousHour,
+	AUTO_CYCLE_DURATION_SECONDS,
+	getInterpolatedTimeConfig,
+	getPhaseCelestialPositions,
 	TIME_PHASES,
 	type TimePhase,
 } from "@/components/world/time-system";
@@ -718,10 +719,10 @@ export function Environment({
 
 	const activePhase: TimePhase = timePhase || (isNight ? "night" : "day");
 	const config = TIME_PHASES[activePhase];
-	const targetHour = getContinuousHour(activePhase, cycleSeconds);
-	const initialOrbits = useMemo(() => getCelestialOrbits(getContinuousHour("dawn", 0)), []);
+	const initialOrbits = useMemo(() => getPhaseCelestialPositions("dawn", 0), []);
 
-	const smoothHourRef = useRef<number>(targetHour);
+	const smoothCycleSecondsRef = useRef<number>(cycleSeconds);
+	const lastPhaseRef = useRef<TimePhase>(activePhase);
 	const orbitRef = useRef<CelestialSharedState>({
 		sunPos: new Vector3(...initialOrbits.sunPosition),
 		moonPos: new Vector3(...initialOrbits.moonPosition),
@@ -743,6 +744,11 @@ export function Environment({
 			sky: new Color(),
 			ground: new Color(),
 			fog: new Color(),
+			nxtDir: new Color(),
+			nxtAmb: new Color(),
+			nxtSky: new Color(),
+			nxtGround: new Color(),
+			nxtFog: new Color(),
 		}),
 		[],
 	);
@@ -755,32 +761,43 @@ export function Environment({
 		{ pos: [-5, 33, 10], scale: 2.6, speed: 0.32 },
 	];
 
-	// Smoothly advance orbital hour and damp lighting, fog, and sky dome shader across all phases
+	// Smoothly advance time-of-day blend, celestial orbits, lighting, fog, and sky dome
 	useFrame((_, delta) => {
-		const dampSpeed = 1.1;
-		const colorFactor = 1 - Math.exp(-dampSpeed * delta);
+		if (lastPhaseRef.current !== activePhase) {
+			lastPhaseRef.current = activePhase;
+			smoothCycleSecondsRef.current = 0;
+		} else {
+			smoothCycleSecondsRef.current += delta;
+			if (Math.abs(smoothCycleSecondsRef.current - cycleSeconds) > 2.0) {
+				smoothCycleSecondsRef.current = cycleSeconds;
+			}
+		}
 
-		// Shortest-arc 24h interpolation so midnight (23:59 -> 00:00) never jumps backward
-		let hourDiff = targetHour - smoothHourRef.current;
-		if (hourDiff < -12) hourDiff += 24;
-		if (hourDiff > 12) hourDiff -= 24;
-		smoothHourRef.current = (smoothHourRef.current + hourDiff * (1 - Math.exp(-3.2 * delta)) + 24) % 24;
+		const safeSeconds = Math.min(AUTO_CYCLE_DURATION_SECONDS, Math.max(0, smoothCycleSecondsRef.current));
+		const blend = getInterpolatedTimeConfig(activePhase, safeSeconds, AUTO_CYCLE_DURATION_SECONDS);
+		const orbits = getPhaseCelestialPositions(activePhase, safeSeconds, AUTO_CYCLE_DURATION_SECONDS);
 
-		const orbits = getCelestialOrbits(smoothHourRef.current);
 		orbitRef.current.sunPos.set(...orbits.sunPosition);
 		orbitRef.current.moonPos.set(...orbits.moonPosition);
 		orbitRef.current.sunVis = orbits.sunVisibility;
 		orbitRef.current.moonVis = orbits.moonVisibility;
 
-		// Directional light tracks the active celestial body above the horizon (Sun by day, Moon by night)
-		const sunIsUp = orbits.sunPosition[1] > -2;
+		// Directional light tracks the active celestial body above the horizon (Sun by day/sunset, Moon by night)
+		const sunIsUp = orbits.sunPosition[1] > -2 && orbits.sunVisibility > 0.05;
 		const activeBody = sunIsUp ? orbitRef.current.sunPos : orbitRef.current.moonPos;
 		lightDirVec.copy(activeBody).normalize().multiplyScalar(60);
 		if (lightDirVec.y < 7) lightDirVec.y = 7;
 
+		// Continuous dynamic color interpolation between current and upcoming phases
+		scratchColors.dir.set(blend.cur.sunLightColor).lerp(scratchColors.nxtDir.set(blend.nxt.sunLightColor), blend.t);
+		scratchColors.amb.set(blend.cur.ambientColor).lerp(scratchColors.nxtAmb.set(blend.nxt.ambientColor), blend.t);
+		scratchColors.sky.set(blend.cur.hemisphereSky).lerp(scratchColors.nxtSky.set(blend.nxt.hemisphereSky), blend.t);
+		scratchColors.ground.set(blend.cur.hemisphereGround).lerp(scratchColors.nxtGround.set(blend.nxt.hemisphereGround), blend.t);
+		scratchColors.fog.set(blend.cur.fogColor).lerp(scratchColors.nxtFog.set(blend.nxt.fogColor), blend.t);
+
 		if (dirLightRef.current) {
-			dirLightRef.current.color.lerp(scratchColors.dir.set(config.sunLightColor), colorFactor);
-			dirLightRef.current.intensity = MathUtils.damp(dirLightRef.current.intensity, config.sunLightIntensity, dampSpeed, delta);
+			dirLightRef.current.color.copy(scratchColors.dir);
+			dirLightRef.current.intensity = MathUtils.damp(dirLightRef.current.intensity, blend.sunLightIntensity, 2.5, delta);
 			dirLightRef.current.position.x = MathUtils.damp(dirLightRef.current.position.x, lightDirVec.x, 3.0, delta);
 			dirLightRef.current.position.y = MathUtils.damp(dirLightRef.current.position.y, lightDirVec.y, 3.0, delta);
 			dirLightRef.current.position.z = MathUtils.damp(dirLightRef.current.position.z, lightDirVec.z, 3.0, delta);
@@ -788,20 +805,20 @@ export function Environment({
 
 		// Ambient light
 		if (ambLightRef.current) {
-			ambLightRef.current.color.lerp(scratchColors.amb.set(config.ambientColor), colorFactor);
-			ambLightRef.current.intensity = MathUtils.damp(ambLightRef.current.intensity, config.ambientIntensity, dampSpeed, delta);
+			ambLightRef.current.color.copy(scratchColors.amb);
+			ambLightRef.current.intensity = MathUtils.damp(ambLightRef.current.intensity, blend.ambientIntensity, 2.5, delta);
 		}
 
 		// Hemisphere light
 		if (hemiLightRef.current) {
-			hemiLightRef.current.color.lerp(scratchColors.sky.set(config.hemisphereSky), colorFactor);
-			hemiLightRef.current.groundColor.lerp(scratchColors.ground.set(config.hemisphereGround), colorFactor);
-			hemiLightRef.current.intensity = MathUtils.damp(hemiLightRef.current.intensity, config.hemisphereIntensity ?? 0.78, dampSpeed, delta);
+			hemiLightRef.current.color.copy(scratchColors.sky);
+			hemiLightRef.current.groundColor.copy(scratchColors.ground);
+			hemiLightRef.current.intensity = MathUtils.damp(hemiLightRef.current.intensity, blend.hemisphereIntensity, 2.5, delta);
 		}
 
 		// Fog & background
-		fog.color.lerp(scratchColors.fog.set(config.fogColor), colorFactor);
-		fog.density = MathUtils.damp(fog.density, config.fogDensity, dampSpeed, delta);
+		fog.color.copy(scratchColors.fog);
+		fog.density = MathUtils.damp(fog.density, blend.fogDensity, 2.5, delta);
 
 		if (scene.background instanceof Color) {
 			scene.background.copy(fog.color);
@@ -814,10 +831,10 @@ export function Environment({
 				u.sunPosition.value.copy(orbitRef.current.sunPos);
 			}
 			if (u.rayleigh) {
-				u.rayleigh.value = MathUtils.damp(u.rayleigh.value, config.skyRayleigh, dampSpeed, delta);
+				u.rayleigh.value = MathUtils.damp(u.rayleigh.value, blend.skyRayleigh, 2.5, delta);
 			}
 			if (u.turbidity) {
-				u.turbidity.value = MathUtils.damp(u.turbidity.value, config.skyTurbidity, dampSpeed, delta);
+				u.turbidity.value = MathUtils.damp(u.turbidity.value, blend.skyTurbidity, 2.5, delta);
 			}
 		}
 	});
