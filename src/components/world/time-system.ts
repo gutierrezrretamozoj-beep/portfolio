@@ -84,8 +84,8 @@ export const TIME_PHASES: Record<TimePhase, TimePhaseInfo> = {
 		timeDisplay: "06:30 PM",
 		timeZone: "GMT-5",
 		description: "Atardecer cálido con cielo violeta, ámbar y faroles encendiéndose",
-		sunPosition: [-36, 22, -65],
-		moonPosition: [30, 18, -58],
+		sunPosition: [-44, 12, -102],
+		moonPosition: [48, 4, -96],
 		skyRayleigh: 4.2,
 		skyTurbidity: 8.5,
 		skyInclination: 0.44,
@@ -97,8 +97,8 @@ export const TIME_PHASES: Record<TimePhase, TimePhaseInfo> = {
 		hemisphereGround: "#5b4a68",
 		fogColor: "#f472b6",
 		fogDensity: 0.0095,
-		sunOpacity: 0.95,
-		moonOpacity: 0.45,
+		sunOpacity: 1.0,
+		moonOpacity: 0.85,
 		starsOpacity: 0.25,
 		cloudDayFactor: 0.4,
 		lanternIntensity: 0.9,
@@ -200,32 +200,57 @@ export type CelestialOrbitState = {
 };
 
 /**
- * Computes physically consistent East (+X) to West (-X) orbital arcs for the 3D Sun and Moon
+ * Computes physically consistent East (+X) to West (-X) celestial arcs for the 3D Sun and Moon
  * positioned behind the mountain range (z ≈ -96 to -102) so the mountains naturally occlude them:
- * - Sun rises at the East horizon (+X) around 06:00, peaks at 12:00, and sets behind the West mountains (-X) around 18:00.
- * - Moon rises at the East horizon (+X) around 18:00 while the Sun sets, peaks at 00:00, and sets behind the West mountains (-X) around 06:00.
+ * - Daytime (05:48 - 19:30): Sun ascends at East horizon (+X) during Dawn, reaches Zenith (Y ≈ 38) at Noon,
+ *   descends across late afternoon, gradually sinks behind the western mountain crests throughout Sunset,
+ *   and finishes dipping behind the peaks right at twilight's end (19:30).
+ * - Twilight & Night: As the Sun sinks in the West during Sunset, the Moon simultaneously emerges at the
+ *   East horizon (+X), climbs to Zenith at Midnight, and gracefully sets behind the western mountains during Dawn.
  */
 export function getCelestialOrbits(hourFloat: number): CelestialOrbitState {
-	const sunAngle = ((hourFloat - 6.0) / 24.0) * Math.PI * 2;
-	const sunSin = Math.sin(sunAngle);
+	const dayStart = 5.8;
+	const dayEnd = 19.5;
+	const dayLen = dayEnd - dayStart;
+	const nightLen = 24.0 - dayLen;
+
+	// Sun trajectory: smooth cosine East-to-West travel and sine altitude arc
+	let sunAngle: number;
+	if (hourFloat >= dayStart && hourFloat <= dayEnd) {
+		const t = (hourFloat - dayStart) / dayLen;
+		sunAngle = t * Math.PI;
+	} else {
+		const elapsed = hourFloat > dayEnd ? hourFloat - dayEnd : hourFloat + 24.0 - dayEnd;
+		const t = elapsed / nightLen;
+		sunAngle = Math.PI + t * Math.PI;
+	}
 	const sunCos = Math.cos(sunAngle);
-	const sunPosition: [number, number, number] = [
-		sunCos * 56,
-		sunSin * 32 + 4,
-		-102,
-	];
+	const sunSin = Math.sin(sunAngle);
+	const sunX = sunCos * 52;
+	const sunY = sunSin * 40 - 2.5;
+	const sunPosition: [number, number, number] = [sunX, sunY, -102];
 
-	const moonAngle = ((hourFloat - 18.0) / 24.0) * Math.PI * 2;
-	const moonSin = Math.sin(moonAngle);
+	// Moon trajectory: strictly synchronized half-cycle opposite the Sun
+	const moonHour = (hourFloat + 12.0) % 24.0;
+	let moonAngle: number;
+	if (moonHour >= dayStart && moonHour <= dayEnd) {
+		const t = (moonHour - dayStart) / dayLen;
+		moonAngle = t * Math.PI;
+	} else {
+		const elapsed = moonHour > dayEnd ? moonHour - dayEnd : moonHour + 24.0 - dayEnd;
+		const t = elapsed / nightLen;
+		moonAngle = Math.PI + t * Math.PI;
+	}
 	const moonCos = Math.cos(moonAngle);
-	const moonPosition: [number, number, number] = [
-		moonCos * 54,
-		moonSin * 28 + 4,
-		-96,
-	];
+	const moonSin = Math.sin(moonAngle);
+	const moonX = moonCos * 50;
+	const moonY = moonSin * 36 - 2.5;
+	const moonPosition: [number, number, number] = [moonX, moonY, -96];
 
-	const sunVisibility = Math.min(1, Math.max(0, (sunPosition[1] + 5) / 8));
-	const moonVisibility = Math.min(1, Math.max(0, (moonPosition[1] + 5) / 8));
+	// Visibility remains 100% solid as bodies traverse mountain ridges (Y >= -2.0)
+	// and only softly dampens when submerged deep under the subterranean horizon (Y: -2.0 -> -8.0)
+	const sunVisibility = Math.min(1, Math.max(0, (sunY + 8.0) / 6.0));
+	const moonVisibility = Math.min(1, Math.max(0, (moonY + 8.0) / 6.0));
 
 	return {
 		sunPosition,

@@ -1,7 +1,18 @@
 import { useAnimations, useGLTF } from "@react-three/drei";
 import { useFrame } from "@react-three/fiber";
 import { Component, type MutableRefObject, type ReactNode, Suspense, useEffect, useMemo, useRef } from "react";
-import { type AnimationClip, Box3, type Group, Mesh, type Object3D, Vector3 } from "three";
+import {
+	AnimationClip,
+	Box3,
+	type Group,
+	type KeyframeTrack,
+	Mesh,
+	type Object3D,
+	Quaternion,
+	QuaternionKeyframeTrack,
+	Vector3,
+	VectorKeyframeTrack,
+} from "three";
 import { clone as cloneSkeleton } from "three/examples/jsm/utils/SkeletonUtils.js";
 import { getModelUrl, MODEL_SPECS, type ModelSlotId } from "@/data/models-manifest";
 
@@ -71,6 +82,109 @@ function normalizeModelInstance(
 		scaleFactor,
 		offset: [offsetX, offsetY, offsetZ],
 	};
+}
+
+function createCatGaitClips(scene: Object3D): AnimationClip[] {
+	const bones = [
+		"L_Leg_Upper",
+		"R_Leg_Upper",
+		"L_BLeg_Upper",
+		"R_BLeg_Upper",
+		"L_Leg_Lower",
+		"R_Leg_Lower",
+		"L_BLeg_Lower",
+		"R_BLeg_Lower",
+		"tail1",
+		"tail2",
+		"tail3",
+		"Neck",
+		"Head",
+		"belly",
+	];
+	const restQ: Record<string, Quaternion> = {};
+	const restT: Record<string, Vector3> = {};
+
+	for (const b of bones) {
+		const node = scene.getObjectByName(b);
+		if (node) {
+			restQ[b] = node.quaternion.clone();
+			restT[b] = node.position.clone();
+		}
+	}
+
+	if (!restQ["L_Leg_Upper"]) return [];
+
+	const makeGait = (name: string, duration: number, swingAmp: number, bendAmp: number): AnimationClip => {
+		const N = 16;
+		const times: number[] = [];
+		for (let i = 0; i <= N; i++) times.push((i / N) * duration);
+
+		const tracks: KeyframeTrack[] = [];
+		const phases: Record<string, number> = {
+			L_Leg_Upper: 0,
+			R_BLeg_Upper: Math.PI * 0.5,
+			R_Leg_Upper: Math.PI,
+			L_BLeg_Upper: Math.PI * 1.5,
+		};
+
+		const legNames = ["L_Leg_Upper", "R_Leg_Upper", "L_BLeg_Upper", "R_BLeg_Upper"];
+		const axisX = new Vector3(1, 0, 0);
+
+		for (const upperName of legNames) {
+			const lowerName = upperName.replace("Upper", "Lower");
+			const phase = phases[upperName];
+			const upperVals: number[] = [];
+			const lowerVals: number[] = [];
+
+			for (const t of times) {
+				const a = (t / duration) * Math.PI * 2 + phase;
+				const swing = Math.sin(a) * swingAmp;
+				const qUpper = restQ[upperName].clone().multiply(new Quaternion().setFromAxisAngle(axisX, swing));
+				upperVals.push(qUpper.x, qUpper.y, qUpper.z, qUpper.w);
+
+				// Lower leg (knee/hock) bends backward when leg is lifted and swings forward
+				const bend = Math.max(0, Math.sin(a)) * bendAmp;
+				const qLower = (restQ[lowerName] ?? new Quaternion()).clone().multiply(new Quaternion().setFromAxisAngle(axisX, bend));
+				lowerVals.push(qLower.x, qLower.y, qLower.z, qLower.w);
+			}
+
+			tracks.push(new QuaternionKeyframeTrack(`${upperName}.quaternion`, times, upperVals));
+			tracks.push(new QuaternionKeyframeTrack(`${lowerName}.quaternion`, times, lowerVals));
+		}
+
+		// Spine / belly bobbing
+		if (restT["belly"]) {
+			const bellyVals: number[] = [];
+			const baseT = restT["belly"];
+			for (const t of times) {
+				const a = (t / duration) * Math.PI * 2;
+				const bob = Math.abs(Math.sin(a * 2)) * 0.008;
+				bellyVals.push(baseT.x, baseT.y + bob, baseT.z);
+			}
+			tracks.push(new VectorKeyframeTrack("belly.position", times, bellyVals));
+		}
+
+		// Tail rhythmic swish
+		if (restQ["tail2"]) {
+			const tailVals: number[] = [];
+			const baseQ = restQ["tail2"];
+			const axisY = new Vector3(0, 1, 0);
+			for (const t of times) {
+				const a = (t / duration) * Math.PI * 2;
+				const swish = Math.sin(a) * 0.22;
+				const q = baseQ.clone().multiply(new Quaternion().setFromAxisAngle(axisY, swish));
+				tailVals.push(q.x, q.y, q.z, q.w);
+			}
+			tracks.push(new QuaternionKeyframeTrack("tail2.quaternion", times, tailVals));
+		}
+
+		return new AnimationClip(name, duration, tracks);
+	};
+
+	return [
+		makeGait("walk", 0.9, 0.44, 0.38),
+		makeGait("run", 0.55, 0.68, 0.52),
+	];
 }
 
 function resolveAnimationClip(
@@ -147,10 +261,21 @@ function AnimatedGLBInner({
 		[gltf.scene, resolvedHeight, resolvedAlignBottom, castShadow, receiveShadow],
 	);
 
-	const { actions } = useAnimations(gltf.animations, groupRef);
+	const effectiveClips = useMemo(() => {
+		if (slot === "animals/cat") {
+			const hasWalk = gltf.animations.some((a) => a.name.toLowerCase().includes("walk"));
+			if (!hasWalk) {
+				const gaits = createCatGaitClips(gltf.scene);
+				return [...gltf.animations, ...gaits];
+			}
+		}
+		return gltf.animations;
+	}, [slot, gltf.animations, gltf.scene]);
+
+	const { actions } = useAnimations(effectiveClips, groupRef);
 	const activeClip = useMemo(
-		() => resolveAnimationClip(gltf.animations, animationState, spec.clips),
-		[gltf.animations, animationState, spec.clips],
+		() => resolveAnimationClip(effectiveClips, animationState, spec.clips),
+		[effectiveClips, animationState, spec.clips],
 	);
 
 	useEffect(() => {

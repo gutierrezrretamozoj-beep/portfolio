@@ -314,12 +314,16 @@ function Cat({ playerRef, colliders, reducedMotion }: { playerRef: AnimalManager
 		);
 		pos.current.set(next.x, next.ground, next.z);
 
-		// Synchronize cat root
-		catGroup.current.position.set(pos.current.x, pos.current.y, pos.current.z);
+		// Synchronize cat root with organic stepping cadence and body roll
+		const t = walkCycle.current;
+		const isWalking = currentSpeed.current > 0.06;
+		const stepBob = isWalking ? Math.abs(Math.sin(t * 2)) * 0.024 : 0;
+		catGroup.current.position.set(pos.current.x, pos.current.y + stepBob, pos.current.z);
+		catGroup.current.rotation.z = isWalking ? Math.sin(t) * 0.035 : 0;
+		catGroup.current.rotation.x = isWalking ? Math.cos(t * 2) * 0.022 : 0;
 		catGroup.current.rotation.y = currentYaw.current;
 
 		// Procedural Skeletal Animations
-		const t = walkCycle.current;
 
 		if (isMoving) {
 			// Natural quadruped diagonal gait:
@@ -393,7 +397,7 @@ function Cat({ playerRef, colliders, reducedMotion }: { playerRef: AnimalManager
 		}
 
 		catGlb.sync(
-			state.current === "flee" ? "run" : currentSpeed.current > 0.18 ? "walk" : "idle",
+			state.current === "flee" ? "run" : isWalking ? "walk" : state.current === "rest" ? "sit" : "idle",
 			currentSpeed.current,
 		);
 	});
