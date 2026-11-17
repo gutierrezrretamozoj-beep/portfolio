@@ -34,8 +34,8 @@ export const TIME_PHASES: Record<TimePhase, TimePhaseInfo> = {
 		timeDisplay: "06:15 AM",
 		timeZone: "GMT-5",
 		description: "Amanecer dorado con bruma matutina y primeros rayos de sol",
-		sunPosition: [36, 26, -65],
-		moonPosition: [-40, 14, -58],
+		sunPosition: [16, 14, -102],
+		moonPosition: [-20, 6, -96],
 		skyRayleigh: 2.4,
 		skyTurbidity: 6.5,
 		skyInclination: 0.46,
@@ -48,7 +48,7 @@ export const TIME_PHASES: Record<TimePhase, TimePhaseInfo> = {
 		fogColor: "#fce7f3",
 		fogDensity: 0.009,
 		sunOpacity: 0.95,
-		moonOpacity: 0.2,
+		moonOpacity: 0.4,
 		starsOpacity: 0.05,
 		cloudDayFactor: 0.7,
 		lanternIntensity: 0.5,
@@ -59,8 +59,8 @@ export const TIME_PHASES: Record<TimePhase, TimePhaseInfo> = {
 		timeDisplay: "12:00 PM",
 		timeZone: "GMT-5",
 		description: "Mediodía radiante con cielo despejado y sol pleno",
-		sunPosition: [24, 48, -62],
-		moonPosition: [-40, -25, -55],
+		sunPosition: [0, 32, -102],
+		moonPosition: [0, -28, -96],
 		skyRayleigh: 1.65,
 		skyTurbidity: 5.8,
 		skyInclination: 0.52,
@@ -84,8 +84,8 @@ export const TIME_PHASES: Record<TimePhase, TimePhaseInfo> = {
 		timeDisplay: "06:30 PM",
 		timeZone: "GMT-5",
 		description: "Atardecer cálido con cielo violeta, ámbar y faroles encendiéndose",
-		sunPosition: [-44, 12, -102],
-		moonPosition: [48, 4, -96],
+		sunPosition: [-4, 28, -102],
+		moonPosition: [24, 4, -96],
 		skyRayleigh: 4.2,
 		skyTurbidity: 8.5,
 		skyInclination: 0.44,
@@ -109,8 +109,8 @@ export const TIME_PHASES: Record<TimePhase, TimePhaseInfo> = {
 		timeDisplay: "09:15 PM",
 		timeZone: "GMT-5",
 		description: "Noche clara y serena con luna creciente, cielo añil y senderos bien iluminados",
-		sunPosition: [-48, -25, -78],
-		moonPosition: [-24, 36, -56],
+		sunPosition: [-20, -25, -102],
+		moonPosition: [16, 22, -96],
 		skyRayleigh: 0.95,
 		skyTurbidity: 3.4,
 		skyInclination: 0.76,
@@ -135,8 +135,8 @@ export const TIME_PHASES: Record<TimePhase, TimePhaseInfo> = {
 		timeDisplay: "12:00 AM",
 		timeZone: "GMT-5",
 		description: "Medianoche estrellada con luna en cenit, luciérnagas y cálidos faroles",
-		sunPosition: [48, -35, -78],
-		moonPosition: [-12, 48, -50],
+		sunPosition: [0, -25, -102],
+		moonPosition: [0, 28, -96],
 		skyRayleigh: 0.35,
 		skyTurbidity: 1.5,
 		skyInclination: 0.82,
@@ -200,63 +200,89 @@ export type CelestialOrbitState = {
 };
 
 /**
- * Computes physically consistent East (+X) to West (-X) celestial arcs for the 3D Sun and Moon
- * positioned behind the mountain range (z ≈ -96 to -102) so the mountains naturally occlude them:
- * - Daytime (05:48 - 19:30): Sun ascends at East horizon (+X) during Dawn, reaches Zenith (Y ≈ 38) at Noon,
- *   descends across late afternoon, gradually sinks behind the western mountain crests throughout Sunset,
- *   and finishes dipping behind the peaks right at twilight's end (19:30).
- * - Twilight & Night: As the Sun sinks in the West during Sunset, the Moon simultaneously emerges at the
- *   East horizon (+X), climbs to Zenith at Midnight, and gracefully sets behind the western mountains during Dawn.
+ * Computes physically consistent, vista-framed celestial positions for the 3D Sun and Moon:
+ * - Midday (08:00 - 17:00): The Sun remains majestic and stationary atop the central mountain peak (Y ≈ 30..32, X ≈ 0).
+ * - Sunset (17:00 - 19:30): When sunset arrives, the Sun NEVER disappears. It remains fully visible in the sky (Y ≈ 28..30),
+ *   then progressively and visibly descends between the western mountain silhouettes (X: -4 -> -24, Y: 28 -> -3),
+ *   dipping behind the mountain crests right as twilight concludes to usher in the night.
+ * - Concurrently, the Moon rises on the eastern horizon during Sunset, travels across zenith at midnight,
+ *   and sets behind the western mountains during Dawn as the Sun ascends in the East.
  */
 export function getCelestialOrbits(hourFloat: number): CelestialOrbitState {
-	const dayStart = 5.8;
-	const dayEnd = 19.5;
-	const dayLen = dayEnd - dayStart;
-	const nightLen = 24.0 - dayLen;
+	let sunX: number;
+	let sunY: number;
+	let sunVis: number;
+	let moonX: number;
+	let moonY: number;
+	let moonVis: number;
 
-	// Sun trajectory: smooth cosine East-to-West travel and sine altitude arc
-	let sunAngle: number;
-	if (hourFloat >= dayStart && hourFloat <= dayEnd) {
-		const t = (hourFloat - dayStart) / dayLen;
-		sunAngle = t * Math.PI;
+	if (hourFloat >= 8.0 && hourFloat <= 17.0) {
+		// Midday: Sun stands calm and high atop the central mountain peak
+		const t = (hourFloat - 8.0) / 9.0;
+		sunX = 4.0 - t * 8.0;
+		sunY = 30.0 + Math.sin(t * Math.PI) * 2.0;
+		sunVis = 1.0;
+
+		moonX = 0;
+		moonY = -28.0;
+		moonVis = 0.0;
+	} else if (hourFloat > 17.0 && hourFloat <= 19.5) {
+		// Sunset: Sun stays fully visible upon arrival, then steadily sinks behind the western mountain crests
+		const t = (hourFloat - 17.0) / 2.5;
+		sunX = -4.0 - t * 20.0;
+
+		if (t < 0.35) {
+			const subT = t / 0.35;
+			sunY = 30.0 - subT * 8.0;
+		} else {
+			const subT = (t - 0.35) / 0.65;
+			sunY = 22.0 - subT * 25.0; // descends down to -3.0 behind the mountain notch
+		}
+
+		sunVis = Math.min(1, Math.max(0, (sunY + 6.0) / 4.0));
+
+		// Moon rises in the East during sunset
+		moonX = 26.0 - t * 4.0;
+		moonY = -2.0 + t * 18.0;
+		moonVis = Math.min(1, Math.max(0, (moonY + 4.0) / 6.0));
+	} else if (hourFloat > 19.5 && hourFloat <= 23.5) {
+		// Night: Sun rests under subterranean horizon; Moon ascends into the night sky
+		const t = (hourFloat - 19.5) / 4.0;
+		sunX = -24.0 + t * 20.0;
+		sunY = -25.0;
+		sunVis = 0.0;
+
+		moonX = 22.0 - t * 16.0;
+		moonY = 16.0 + t * 12.0;
+		moonVis = 1.0;
+	} else if (hourFloat > 23.5 || hourFloat <= 5.5) {
+		// Midnight: Moon crowns the central sky above the mountains, then starts its descent
+		const normHour = hourFloat > 23.5 ? hourFloat - 23.5 : hourFloat + 0.5;
+		const t = normHour / 6.0;
+		sunX = -4.0 + t * 24.0;
+		sunY = -25.0;
+		sunVis = 0.0;
+
+		moonX = 6.0 - t * 18.0;
+		moonY = 28.0 - t * 10.0;
+		moonVis = 1.0;
 	} else {
-		const elapsed = hourFloat > dayEnd ? hourFloat - dayEnd : hourFloat + 24.0 - dayEnd;
-		const t = elapsed / nightLen;
-		sunAngle = Math.PI + t * Math.PI;
-	}
-	const sunCos = Math.cos(sunAngle);
-	const sunSin = Math.sin(sunAngle);
-	const sunX = sunCos * 52;
-	const sunY = sunSin * 40 - 2.5;
-	const sunPosition: [number, number, number] = [sunX, sunY, -102];
+		// Dawn: Sun ascends from East horizon up to midday mountain crest; Moon sets in the West
+		const t = (hourFloat - 5.5) / 2.5;
+		sunX = 20.0 - t * 16.0;
+		sunY = -3.0 + t * 33.0;
+		sunVis = Math.min(1, Math.max(0, (sunY + 6.0) / 5.0));
 
-	// Moon trajectory: strictly synchronized half-cycle opposite the Sun
-	const moonHour = (hourFloat + 12.0) % 24.0;
-	let moonAngle: number;
-	if (moonHour >= dayStart && moonHour <= dayEnd) {
-		const t = (moonHour - dayStart) / dayLen;
-		moonAngle = t * Math.PI;
-	} else {
-		const elapsed = moonHour > dayEnd ? moonHour - dayEnd : moonHour + 24.0 - dayEnd;
-		const t = elapsed / nightLen;
-		moonAngle = Math.PI + t * Math.PI;
+		moonX = -12.0 - t * 12.0;
+		moonY = 18.0 - t * 21.0;
+		moonVis = Math.min(1, Math.max(0, (moonY + 5.0) / 5.0));
 	}
-	const moonCos = Math.cos(moonAngle);
-	const moonSin = Math.sin(moonAngle);
-	const moonX = moonCos * 50;
-	const moonY = moonSin * 36 - 2.5;
-	const moonPosition: [number, number, number] = [moonX, moonY, -96];
-
-	// Visibility remains 100% solid as bodies traverse mountain ridges (Y >= -2.0)
-	// and only softly dampens when submerged deep under the subterranean horizon (Y: -2.0 -> -8.0)
-	const sunVisibility = Math.min(1, Math.max(0, (sunY + 8.0) / 6.0));
-	const moonVisibility = Math.min(1, Math.max(0, (moonY + 8.0) / 6.0));
 
 	return {
-		sunPosition,
-		moonPosition,
-		sunVisibility,
-		moonVisibility,
+		sunPosition: [sunX, sunY, -102],
+		moonPosition: [moonX, moonY, -96],
+		sunVisibility: sunVis,
+		moonVisibility: moonVis,
 	};
 }
 

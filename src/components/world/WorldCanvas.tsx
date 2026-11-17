@@ -39,8 +39,9 @@ type WorldCanvasProps = {
 
 function WorldCanvas({ inputRef, playerRef, quality, target, interacting, timePhase = "day", cycleSeconds = 0, isNight = false, language = "es", onReady, onNearbyChange, onPosition, onArrived, onCancelNavigate, onActivate }: WorldCanvasProps) {
 	const isLow = quality === "LOW";
-	const effectiveNight = timePhase === "night" || timePhase === "midnight" || timePhase === "sunset" || isNight;
+	const isNocturnal = timePhase === "night" || timePhase === "midnight" || isNight;
 	const currentPoints = useMemo(() => getWorldPoints(language), [language]);
+	const clearColor = isNocturnal ? "#090e1a" : timePhase === "sunset" ? "#f472b6" : "#ccecf8";
 	return (
 		<Canvas
 			className="world-renderer"
@@ -50,20 +51,20 @@ function WorldCanvas({ inputRef, playerRef, quality, target, interacting, timePh
 			gl={{ antialias: quality !== "LOW", alpha: false, powerPreference: "high-performance" }}
 			onCreated={({ gl }) => {
 				gl.shadowMap.type = PCFShadowMap;
-				gl.setClearColor(effectiveNight ? "#090e1a" : "#ccecf8", 1);
+				gl.setClearColor(clearColor, 1);
 				onReady();
 			}}
 			fallback={<div className="webgl-fallback">WebGL is unavailable. Use the world menu to read David&apos;s profile and projects.</div>}
 		>
 			<Suspense fallback={null}>
-				<Environment timePhase={timePhase} cycleSeconds={cycleSeconds} isNight={effectiveNight} />
+				<Environment timePhase={timePhase} cycleSeconds={cycleSeconds} isNight={isNocturnal} />
 				<Terrain quality={quality} playerRef={playerRef} />
 				<River />
-				<PerimeterFence isNight={effectiveNight} />
+				<PerimeterFence isNight={isNocturnal} />
 				<Vegetation quality={quality} onActivate={onActivate} />
 				<AnimalManager playerRef={playerRef} quality={quality} colliders={worldColliders} />
-				<Landmarks onActivate={onActivate} isNight={effectiveNight} language={language} />
-				<StreetLamps isNight={effectiveNight} />
+				<Landmarks onActivate={onActivate} isNight={isNocturnal} language={language} />
+				<StreetLamps isNight={isNocturnal} />
 				<NavigationTrail target={target} playerRef={playerRef} />
 				<PlayerController
 					inputRef={inputRef}
